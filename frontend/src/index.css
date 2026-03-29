@@ -1,1 +1,85 @@
 @import "tailwindcss";
+
+@theme {
+  /* Warm financial palette */
+  --color-sand-50: #faf8f5;
+  --color-sand-100: #f3efe8;
+  --color-sand-200: #e8e0d4;
+  --color-sand-300: #d4c8b8;
+  --color-sand-400: #b8a690;
+  --color-sand-500: #9a856c;
+  --color-sand-600: #7d6b55;
+  --color-sand-700: #655646;
+  --color-sand-800: #4a3f34;
+  --color-sand-900: #2e2822;
+
+  --color-forest-50: #f0f7f4;
+  --color-forest-100: #dceee5;
+  --color-forest-200: #b8dcca;
+  --color-forest-300: #7fc3a5;
+  --color-forest-400: #4ea87e;
+  --color-forest-500: #2d8a5e;
+  --color-forest-600: #1f6f4a;
+  --color-forest-700: #1a5a3d;
+  --color-forest-800: #164832;
+  --color-forest-900: #0f3324;
+
+  --color-ember-50: #fef4f0;
+  --color-ember-100: #fde5db;
+  --color-ember-200: #fbc7b3;
+  --color-ember-300: #f7a080;
+  --color-ember-400: #f0734d;
+  --color-ember-500: #e85528;
+  --color-ember-600: #c4401d;
+  --color-ember-700: #9e3318;
+  --color-ember-800: #7a2a16;
+  --color-ember-900: #511e10;
+
+  --color-dusk-50: #f5f3f8;
+  --color-dusk-100: #e8e4f0;
+  --color-dusk-200: #d1c9e1;
+  --color-dusk-300: #b0a3ca;
+  --color-dusk-400: #8f7db3;
+  --color-dusk-500: #73619a;
+  --color-dusk-600: #5d4e7e;
+  --color-dusk-700: #4b3f66;
+  --color-dusk-800: #3a3150;
+  --color-dusk-900: #271f38;
+
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-display: "DM Serif Display", Georgia, serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-sand-50);
+  color: var(--color-sand-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-sand-300);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-sand-400);
+}
