@@ -51,7 +51,7 @@ export function CategoriesPage() {
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sand-400">Configuration</p>
-      <h1 className="mt-1 font-display text-3xl text-sand-900">Categories & Regles</h1>
+      <h1 className="mt-1 font-display text-3xl text-sand-900">Catégories & Règles</h1>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Categories tree */}
@@ -62,7 +62,7 @@ export function CategoriesPage() {
           className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm"
         >
           <div className="flex items-center gap-2">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Arbre des categories</h2>
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Arbre des catégories</h2>
             {categories && (
               <span className="rounded-md bg-sand-100 px-1.5 py-0.5 text-[10px] font-semibold text-sand-500">
                 {categories.reduce((sum, g) => sum + g.children.length, 0)}
@@ -81,7 +81,7 @@ export function CategoriesPage() {
             </ul>
           ) : (
             <div className="flex h-40 items-center justify-center text-[13px] text-sand-300">
-              Lancez la migration Actual Budget dans Parametres
+              Lancez la migration Actual Budget dans Paramètres
             </div>
           )}
         </motion.div>
@@ -94,7 +94,7 @@ export function CategoriesPage() {
           className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm"
         >
           <div className="flex items-center gap-2">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Regles de mapping</h2>
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Règles de mapping</h2>
             {rules && (
               <span className="rounded-md bg-sand-100 px-1.5 py-0.5 text-[10px] font-semibold text-sand-500">
                 {rules.length}
@@ -128,7 +128,7 @@ export function CategoriesPage() {
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-[13px] text-sand-300">
-              Aucune regle configuree
+              Aucune règle configurée
             </div>
           )}
         </motion.div>

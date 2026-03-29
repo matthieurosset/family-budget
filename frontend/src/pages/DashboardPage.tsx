@@ -75,7 +75,7 @@ export function DashboardPage() {
             animate={{ opacity: 1 }}
             className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sand-400"
           >
-            Apercu mensuel
+            Aperçu mensuel
           </motion.p>
           <h1 className="mt-1 font-display text-3xl text-sand-900 md:text-4xl">
             {formatMonth(month)}
@@ -93,7 +93,7 @@ export function DashboardPage() {
 
       {/* Summary cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Depenses" value={summary?.total_expenses} icon={ArrowDownRight} accent="text-ember-600" delay={0.05} />
+        <StatCard label="Dépenses" value={summary?.total_expenses} icon={ArrowDownRight} accent="text-ember-600" delay={0.05} />
         <StatCard label="Revenus" value={summary?.total_income} icon={ArrowUpRight} accent="text-forest-600" delay={0.1} />
         <StatCard label="Transferts" value={summary?.total_transfers} icon={ArrowUpRight} accent="text-dusk-500" delay={0.15} />
         <StatCard
@@ -114,7 +114,7 @@ export function DashboardPage() {
           className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm lg:col-span-3"
         >
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">
-            Repartition des depenses
+            Répartition des dépenses
           </h2>
           {pieData && pieData.length > 0 ? (
             <>
@@ -163,7 +163,7 @@ export function DashboardPage() {
             </>
           ) : (
             <div className="flex h-[300px] items-center justify-center">
-              <p className="text-sm text-sand-300">Aucune donnee pour ce mois</p>
+              <p className="text-sm text-sand-300">Aucune donnée pour ce mois</p>
             </div>
           )}
         </motion.div>
@@ -176,7 +176,7 @@ export function DashboardPage() {
           className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm lg:col-span-2"
         >
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">
-            Evolutions notables
+            Évolutions notables
           </h2>
           {anomalies && anomalies.length > 0 ? (
             <ul className="mt-4 space-y-3">
@@ -217,7 +217,7 @@ export function DashboardPage() {
             </ul>
           ) : (
             <div className="flex h-[200px] items-center justify-center">
-              <p className="text-sm text-sand-300">Aucune anomalie detectee</p>
+              <p className="text-sm text-sand-300">Aucune anomalie détectée</p>
             </div>
           )}
         </motion.div>

@@ -10,8 +10,11 @@ from app.config import settings
 
 app = FastAPI(
     title="Family Budget Analyzer",
-    description="Self-hosted family expense analyzer",
+    description="Analyseur de dépenses familiales self-hosted",
     version="0.1.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 app.add_middleware(

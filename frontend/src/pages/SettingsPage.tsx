@@ -24,7 +24,7 @@ export function SettingsPage() {
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sand-400">Configuration</p>
-      <h1 className="mt-1 font-display text-3xl text-sand-900">Parametres</h1>
+      <h1 className="mt-1 font-display text-3xl text-sand-900">Paramètres</h1>
 
       <div className="mt-6 space-y-6">
         {/* Migration */}
@@ -41,7 +41,7 @@ export function SettingsPage() {
             <div>
               <h2 className="text-[14px] font-semibold text-sand-800">Migration Actual Budget</h2>
               <p className="text-[12px] text-sand-400">
-                Importer les categories et regles depuis votre base Actual Budget
+                Importer les catégories et règles depuis votre base Actual Budget
               </p>
             </div>
           </div>
@@ -99,7 +99,7 @@ export function SettingsPage() {
             <div>
               <h2 className="text-[14px] font-semibold text-sand-800">Workflow Claude Code</h2>
               <p className="text-[12px] text-sand-400">
-                Exporter les transactions non categorisees pour traitement batch
+                Exporter les transactions non catégorisées pour traitement batch
               </p>
             </div>
           </div>
@@ -108,15 +108,15 @@ export function SettingsPage() {
             <ol className="space-y-2 text-[12px] text-sand-600">
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">1</span>
-                Exportez le CSV des transactions non categorisees
+                Exportez le CSV des transactions non catégorisées
               </li>
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">2</span>
-                Donnez le fichier a Claude Code pour categorisation
+                Donnez le fichier à Claude Code pour catégorisation
               </li>
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">3</span>
-                Reimportez le CSV avec les categories et nouvelles regles
+                Réimportez le CSV avec les catégories et nouvelles règles
               </li>
             </ol>
           </div>
@@ -126,7 +126,7 @@ export function SettingsPage() {
             className="mt-4 inline-flex items-center gap-2 rounded-xl bg-sand-900 px-5 py-2.5 text-[13px] font-semibold text-sand-50 shadow-lg shadow-sand-900/20 transition-all hover:bg-sand-800"
           >
             <Download className="h-4 w-4" />
-            Exporter les non-categorisees (CSV)
+            Exporter les non-catégorisées (CSV)
           </a>
         </motion.div>
 

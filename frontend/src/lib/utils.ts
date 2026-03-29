@@ -21,8 +21,8 @@ export function prevMonth(month: string): string {
 export function formatMonth(month: string): string {
   const [y, m] = month.split("-");
   const months = [
-    "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre",
+    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
   ];
   return `${months[parseInt(m) - 1]} ${y}`;
 }

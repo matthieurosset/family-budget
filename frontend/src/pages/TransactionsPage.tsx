@@ -58,7 +58,7 @@ export function TransactionsPage() {
               <tr className="border-b border-sand-100 bg-sand-50/60">
                 <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-sand-400">Date</th>
                 <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-sand-400">Description</th>
-                <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-sand-400">Categorie</th>
+                <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-sand-400">Catégorie</th>
                 <th className="px-5 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-sand-400">Montant</th>
               </tr>
             </thead>
@@ -98,7 +98,7 @@ export function TransactionsPage() {
                         </span>
                       ) : (
                         <span className="inline-flex rounded-lg bg-sand-100 px-2.5 py-1 text-[11px] text-sand-400">
-                          Non classe
+                          Non classé
                         </span>
                       )}
                     </td>
@@ -127,7 +127,7 @@ export function TransactionsPage() {
               disabled={page === 1}
               className="flex items-center gap-1 rounded-lg border border-sand-200 bg-white px-3 py-1.5 text-[12px] font-medium text-sand-600 transition-colors hover:bg-sand-50 disabled:opacity-30"
             >
-              <ChevronLeft className="h-3.5 w-3.5" /> Prec.
+              <ChevronLeft className="h-3.5 w-3.5" /> Préc.
             </button>
             <button
               onClick={() => setPage(page + 1)}

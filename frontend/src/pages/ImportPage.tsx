@@ -39,9 +39,9 @@ export function ImportPage() {
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sand-400">Importer</p>
-      <h1 className="mt-1 font-display text-3xl text-sand-900">Import des releves</h1>
+      <h1 className="mt-1 font-display text-3xl text-sand-900">Import des relevés</h1>
       <p className="mt-2 text-[13px] text-sand-500">
-        Deposez vos fichiers camt.053 (XML) et Viseca (PDF) pour importer les transactions du mois.
+        Déposez vos fichiers camt.053 (XML) et Viseca (PDF) pour importer les transactions du mois.
       </p>
 
       <div className="mt-6 space-y-5">
@@ -68,7 +68,7 @@ export function ImportPage() {
           <p className="mt-3 text-[13px] font-medium text-sand-600">
             Glissez vos fichiers ici ou cliquez pour parcourir
           </p>
-          <p className="mt-1 text-[11px] text-sand-300">XML (camt.053) et PDF (Viseca) acceptes</p>
+          <p className="mt-1 text-[11px] text-sand-300">XML (camt.053) et PDF (Viseca) acceptés</p>
         </div>
 
         {/* File list */}
@@ -139,9 +139,9 @@ export function ImportPage() {
                   <Check className="h-5 w-5 text-forest-600" />
                 </div>
                 <div>
-                  <p className="text-[14px] font-semibold text-sand-800">Import reussi</p>
+                  <p className="text-[14px] font-semibold text-sand-800">Import réussi</p>
                   <p className="text-[12px] text-sand-400">
-                    {result.transactions_created} transactions creees pour {result.month}
+                    {result.transactions_created} transactions créées pour {result.month}
                   </p>
                 </div>
               </div>
@@ -149,7 +149,7 @@ export function ImportPage() {
               {result.reconciliation && (
                 <div className="rounded-xl bg-dusk-50 p-3.5 text-[12px] text-dusk-700">
                   <span className="font-semibold">Reconciliation CC :</span>{" "}
-                  {String((result.reconciliation as Record<string, unknown>).cc_transactions)} transactions liees a la facture Viseca
+                  {String((result.reconciliation as Record<string, unknown>).cc_transactions)} transactions liées à la facture Viseca
                 </div>
               )}
 
@@ -159,7 +159,7 @@ export function ImportPage() {
                 className="flex items-center gap-2.5 rounded-xl bg-forest-600 px-5 py-2.5 text-[13px] font-semibold text-white shadow-md shadow-forest-600/20 transition-all hover:bg-forest-700 disabled:opacity-60"
               >
                 <Sparkles className="h-4 w-4" />
-                {applyRules.isPending ? "Categorisation en cours..." : "Appliquer les regles de categorisation"}
+                {applyRules.isPending ? "Catégorisation en cours..." : "Appliquer les règles de catégorisation"}
               </button>
 
               {applyRules.isSuccess && (
@@ -168,7 +168,7 @@ export function ImportPage() {
                   animate={{ opacity: 1 }}
                   className="rounded-xl bg-forest-50 p-3.5 text-[12px] text-forest-700"
                 >
-                  <span className="font-semibold">{(applyRules.data as Record<string, number>).categorized}</span> transactions categorisees,{" "}
+                  <span className="font-semibold">{(applyRules.data as Record<string, number>).categorized}</span> transactions catégorisées,{" "}
                   <span className="font-semibold">{(applyRules.data as Record<string, number>).remaining}</span> restantes
                 </motion.div>
               )}

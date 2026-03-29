@@ -11,7 +11,7 @@ export function EnvelopesPage() {
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sand-400">Provisions annuelles</p>
       <h1 className="mt-1 font-display text-3xl text-sand-900">Enveloppes</h1>
       <p className="mt-2 text-[13px] text-sand-500">
-        Suivi des provisions mensuelles pour vos depenses annuelles (assurances, taxes, etc.)
+        Suivi des provisions mensuelles pour vos dépenses annuelles (assurances, taxes, etc.)
       </p>
 
       {isLoading ? (
@@ -62,7 +62,7 @@ export function EnvelopesPage() {
                     <span className="font-medium text-forest-600">{formatCHF(env.total_provisions)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sand-400">Depenses</span>
+                    <span className="text-sand-400">Dépenses</span>
                     <span className="font-medium text-ember-600">{formatCHF(env.total_expenses)}</span>
                   </div>
                   <div className="flex justify-between border-t border-sand-100 pt-2">
@@ -83,8 +83,8 @@ export function EnvelopesPage() {
           className="mt-12 text-center"
         >
           <Wallet className="mx-auto h-10 w-10 text-sand-200" strokeWidth={1.2} />
-          <p className="mt-3 text-[13px] text-sand-400">Aucune enveloppe configuree</p>
-          <p className="mt-1 text-[11px] text-sand-300">Creez-en depuis les parametres ou l'API</p>
+          <p className="mt-3 text-[13px] text-sand-400">Aucune enveloppe configurée</p>
+          <p className="mt-1 text-[11px] text-sand-300">Créez-en depuis les paramètres ou l'API</p>
         </motion.div>
       )}
     </div>

@@ -13,9 +13,9 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/transactions", label: "Transactions", icon: List },
   { to: "/import", label: "Import", icon: FileUp },
-  { to: "/categories", label: "Categories", icon: Layers },
+  { to: "/categories", label: "Catégories", icon: Layers },
   { to: "/envelopes", label: "Enveloppes", icon: PiggyBank },
-  { to: "/settings", label: "Parametres", icon: Settings },
+  { to: "/settings", label: "Paramètres", icon: Settings },
 ];
 
 function NavItem({ to, label, icon: Icon }: (typeof navItems)[number]) {
