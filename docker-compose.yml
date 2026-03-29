@@ -1,0 +1,21 @@
+services:
+  backend:
+    build: ./backend
+    volumes:
+      - budget-data:/app/data
+    environment:
+      - FB_DATABASE_URL=sqlite:////app/data/family-budget.db
+      - FB_DATA_DIR=/app/data
+      - FB_UPLOAD_DIR=/app/data/uploads
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8086:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  budget-data:
