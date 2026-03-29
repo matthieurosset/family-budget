@@ -1,7 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { CategoriesPage } from "./pages/CategoriesPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { EnvelopesPage } from "./pages/EnvelopesPage";
+import { ImportPage } from "./pages/ImportPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { TransactionsPage } from "./pages/TransactionsPage";
 
 const queryClient = new QueryClient();
 
@@ -13,6 +18,11 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/transactions" element={<TransactionsPage />} />
+            <Route path="/import" element={<ImportPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/envelopes" element={<EnvelopesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
