@@ -2,7 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.categories_routes import router as categories_router
+from app.api.dashboard_routes import router as dashboard_router
+from app.api.envelope_routes import router as envelope_router
 from app.api.import_routes import router as import_router
+from app.api.transaction_routes import router as transaction_router
 from app.config import settings
 
 app = FastAPI(
@@ -22,6 +25,9 @@ app.add_middleware(
 
 app.include_router(import_router)
 app.include_router(categories_router)
+app.include_router(dashboard_router)
+app.include_router(envelope_router)
+app.include_router(transaction_router)
 
 
 @app.get("/api/health")
