@@ -3,9 +3,19 @@
 import csv
 import io
 import re
+import unicodedata
 from datetime import date
 
 from sqlalchemy.orm import Session
+
+
+def _normalize(text: str) -> str:
+    """Lowercase and strip accents for accent-insensitive matching."""
+    text = text.lower()
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
 
 from app.models import Category, MappingRule, Transaction, VisecaCategoryMapping
 
@@ -59,12 +69,12 @@ def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
 
     categorized_count = 0
     for tx in uncategorized:
-        search_text = ((tx.description or "") + " " + (tx.merchant_name or "")).lower()
+        search_text = _normalize((tx.description or "") + " " + (tx.merchant_name or ""))
         tx_abs_amount = abs(tx.amount)
 
         for rule in rules:
-            # Text match
-            if rule.pattern.lower() not in search_text:
+            # Text match (case + accent insensitive)
+            if _normalize(rule.pattern) not in search_text:
                 continue
             # Direction filter
             if rule.direction == "expense" and tx.amount > 0:
