@@ -54,6 +54,9 @@ class RuleCreate(BaseModel):
     pattern: str
     category_id: int
     priority: int = 0
+    min_amount: float | None = None
+    max_amount: float | None = None
+    direction: str | None = None  # "expense" / "income" / null
 
 
 class RuleResponse(BaseModel):
@@ -62,6 +65,9 @@ class RuleResponse(BaseModel):
     category_id: int
     category_name: str
     priority: int
+    min_amount: str | None
+    max_amount: str | None
+    direction: str | None
     source: str
 
     class Config:
@@ -140,7 +146,10 @@ def list_rules(db: Session = Depends(get_db)):
     return [
         RuleResponse(
             id=r.id, pattern=r.pattern, category_id=r.category_id,
-            category_name=r.category.name if r.category else "", priority=r.priority, source=r.source,
+            category_name=r.category.name if r.category else "", priority=r.priority,
+            min_amount=str(r.min_amount) if r.min_amount is not None else None,
+            max_amount=str(r.max_amount) if r.max_amount is not None else None,
+            direction=r.direction, source=r.source,
         )
         for r in rules
     ]
@@ -154,7 +163,10 @@ def create_rule(data: RuleCreate, db: Session = Depends(get_db)):
     db.refresh(rule)
     return RuleResponse(
         id=rule.id, pattern=rule.pattern, category_id=rule.category_id,
-        category_name=rule.category.name, priority=rule.priority, source=rule.source,
+        category_name=rule.category.name, priority=rule.priority,
+        min_amount=str(rule.min_amount) if rule.min_amount is not None else None,
+        max_amount=str(rule.max_amount) if rule.max_amount is not None else None,
+        direction=rule.direction, source=rule.source,
     )
 
 

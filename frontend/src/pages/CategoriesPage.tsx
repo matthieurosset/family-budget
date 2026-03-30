@@ -136,9 +136,11 @@ function AddRuleForm({
 }) {
   const [pattern, setPattern] = useState("");
   const [categoryId, setCategoryId] = useState<number | "">("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [direction, setDirection] = useState("");
   const createRule = useCreateRule();
 
-  // Flatten categories for select
   const flatCats: { id: number; name: string; group: string }[] = [];
   for (const group of categories) {
     for (const cat of group.children) {
@@ -150,8 +152,14 @@ function AddRuleForm({
     e.preventDefault();
     if (!pattern.trim() || !categoryId) return;
     createRule.mutate(
-      { pattern: pattern.trim(), category_id: Number(categoryId) },
-      { onSuccess: () => { setPattern(""); setCategoryId(""); onClose(); } },
+      {
+        pattern: pattern.trim(),
+        category_id: Number(categoryId),
+        min_amount: minAmount ? parseFloat(minAmount) : null,
+        max_amount: maxAmount ? parseFloat(maxAmount) : null,
+        direction: direction || null,
+      },
+      { onSuccess: () => onClose() },
     );
   };
 
@@ -174,7 +182,7 @@ function AddRuleForm({
           type="text"
           value={pattern}
           onChange={(e) => setPattern(e.target.value)}
-          placeholder="Pattern (ex: Coop, Migros...)"
+          placeholder="Texte à chercher (ex: Coop, Crédit...)"
           className="flex-1 rounded-lg border border-sand-200 bg-white px-3 py-2 text-[12px] font-mono text-sand-700 placeholder:text-sand-300 focus:border-sand-400 focus:outline-none"
         />
         <select
@@ -187,6 +195,33 @@ function AddRuleForm({
             <option key={c.id} value={c.id}>{c.group} › {c.name}</option>
           ))}
         </select>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={direction}
+          onChange={(e) => setDirection(e.target.value)}
+          className="rounded-lg border border-sand-200 bg-white px-3 py-2 text-[12px] text-sand-700 focus:border-sand-400 focus:outline-none"
+        >
+          <option value="">Toutes directions</option>
+          <option value="expense">Dépenses uniquement</option>
+          <option value="income">Revenus uniquement</option>
+        </select>
+        <input
+          type="number"
+          step="0.01"
+          value={minAmount}
+          onChange={(e) => setMinAmount(e.target.value)}
+          placeholder="Montant min"
+          className="w-28 rounded-lg border border-sand-200 bg-white px-3 py-2 text-[12px] tabular-nums text-sand-700 placeholder:text-sand-300 focus:border-sand-400 focus:outline-none"
+        />
+        <input
+          type="number"
+          step="0.01"
+          value={maxAmount}
+          onChange={(e) => setMaxAmount(e.target.value)}
+          placeholder="Montant max"
+          className="w-28 rounded-lg border border-sand-200 bg-white px-3 py-2 text-[12px] tabular-nums text-sand-700 placeholder:text-sand-300 focus:border-sand-400 focus:outline-none"
+        />
       </div>
       <button
         type="submit"
@@ -311,9 +346,19 @@ export function CategoriesPage() {
                           {r.category_name}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center gap-3 text-[10px] text-sand-400">
-                        <span>Source : <span className="text-sand-500">{r.source}</span></span>
-                        <span>Priorité : <span className="text-sand-500">{r.priority}</span></span>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-sand-400">
+                        {r.direction && (
+                          <span className="rounded bg-dusk-50 px-1.5 py-0.5 text-dusk-600 font-semibold">
+                            {r.direction === "income" ? "Revenus" : "Dépenses"}
+                          </span>
+                        )}
+                        {r.min_amount && (
+                          <span>min : <span className="text-sand-500 tabular-nums">{r.min_amount} CHF</span></span>
+                        )}
+                        {r.max_amount && (
+                          <span>max : <span className="text-sand-500 tabular-nums">{r.max_amount} CHF</span></span>
+                        )}
+                        <span className="text-sand-300">{r.source}</span>
                       </div>
                     </div>
                     <button

@@ -103,6 +103,9 @@ class MappingRule(Base):
     pattern: Mapped[str] = mapped_column(String(200), nullable=False)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     priority: Mapped[int] = mapped_column(Integer, default=0)
+    min_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))  # montant abs minimum
+    max_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))  # montant abs maximum
+    direction: Mapped[str | None] = mapped_column(String(10))  # "expense" / "income" / null (both)
     source: Mapped[str] = mapped_column(String(20), default="manual")  # manual / viseca / claude_code / actual_budget
 
     category: Mapped["Category"] = relationship(back_populates="mapping_rules")

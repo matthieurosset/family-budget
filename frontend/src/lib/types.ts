@@ -65,6 +65,9 @@ export interface MappingRule {
   category_id: number;
   category_name: string;
   priority: number;
+  min_amount: string | null;
+  max_amount: string | null;
+  direction: string | null;
   source: string;
 }
 

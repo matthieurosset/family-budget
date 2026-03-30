@@ -59,15 +59,27 @@ def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
 
     categorized_count = 0
     for tx in uncategorized:
-        # Build searchable text from description and merchant
-        search_text = (tx.description or "") + " " + (tx.merchant_name or "")
-        search_text_lower = search_text.lower()
+        search_text = ((tx.description or "") + " " + (tx.merchant_name or "")).lower()
+        tx_abs_amount = abs(tx.amount)
 
         for rule in rules:
-            if rule.pattern.lower() in search_text_lower:
-                tx.category_id = rule.category_id
-                categorized_count += 1
-                break
+            # Text match
+            if rule.pattern.lower() not in search_text:
+                continue
+            # Direction filter
+            if rule.direction == "expense" and tx.amount > 0:
+                continue
+            if rule.direction == "income" and tx.amount < 0:
+                continue
+            # Amount filters
+            if rule.min_amount is not None and tx_abs_amount < rule.min_amount:
+                continue
+            if rule.max_amount is not None and tx_abs_amount > rule.max_amount:
+                continue
+            # All conditions match
+            tx.category_id = rule.category_id
+            categorized_count += 1
+            break
 
     db.commit()
 

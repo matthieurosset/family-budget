@@ -129,7 +129,7 @@ export function useDeleteCategory() {
 export function useCreateRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { pattern: string; category_id: number; priority?: number }) =>
+    mutationFn: (data: { pattern: string; category_id: number; priority?: number; min_amount?: number | null; max_amount?: number | null; direction?: string | null }) =>
       api.post("/rules", data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["rules"] }),
   });
