@@ -70,11 +70,17 @@ def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
                 break
 
     db.commit()
+
+    # Auto-link categorized expenses to envelopes
+    from app.services.envelope_service import link_all_expenses_to_envelopes
+    envelopes_linked = link_all_expenses_to_envelopes(db)
+
     return {
         "status": "success",
         "categorized": categorized_count + transfers_categorized,
         "transfers": transfers_categorized,
         "rules_matched": categorized_count,
+        "envelopes_linked": envelopes_linked,
         "total_uncategorized": len(uncategorized) + transfers_categorized,
         "remaining": len(uncategorized) - categorized_count,
     }

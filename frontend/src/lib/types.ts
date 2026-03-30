@@ -73,6 +73,8 @@ export interface Envelope {
   name: string;
   monthly_amount: string;
   currency: string;
+  category_id: number | null;
+  category_name: string | null;
   total_provisions: string;
   total_expenses: string;
   balance: string;

@@ -115,7 +115,9 @@ class AnnualEnvelope(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     monthly_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="CHF")
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
 
+    category: Mapped["Category | None"] = relationship()
     envelope_transactions: Mapped[list["AnnualEnvelopeTransaction"]] = relationship(back_populates="envelope")
 
 

@@ -1,13 +1,22 @@
 """API routes for annual expense envelopes."""
 
+import shutil
+import tempfile
+from datetime import date as date_type
 from decimal import Decimal
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import AnnualEnvelope, AnnualEnvelopeTransaction
+from app.services.envelope_service import (
+    import_from_excel,
+    link_all_expenses_to_envelopes,
+    split_transfer_to_provisions,
+)
 
 router = APIRouter(prefix="/api/envelopes", tags=["envelopes"])
 
@@ -16,11 +25,13 @@ class EnvelopeCreate(BaseModel):
     name: str
     monthly_amount: Decimal
     currency: str = "CHF"
+    category_id: int | None = None
 
 
 class EnvelopeUpdate(BaseModel):
     name: str | None = None
     monthly_amount: Decimal | None = None
+    category_id: int | None = None
 
 
 class EnvelopeTransactionCreate(BaseModel):
@@ -36,12 +47,11 @@ class EnvelopeResponse(BaseModel):
     name: str
     monthly_amount: str
     currency: str
+    category_id: int | None
+    category_name: str | None
     total_provisions: str
     total_expenses: str
     balance: str
-
-    class Config:
-        from_attributes = True
 
 
 @router.get("", response_model=list[EnvelopeResponse])
@@ -49,17 +59,15 @@ def list_envelopes(db: Session = Depends(get_db)):
     envelopes = db.query(AnnualEnvelope).order_by(AnnualEnvelope.name).all()
     result = []
     for env in envelopes:
-        provisions = sum(
-            t.amount for t in env.envelope_transactions if t.type == "provision"
-        )
-        expenses = sum(
-            t.amount for t in env.envelope_transactions if t.type == "expense"
-        )
+        provisions = sum(t.amount for t in env.envelope_transactions if t.type == "provision")
+        expenses = sum(t.amount for t in env.envelope_transactions if t.type == "expense")
         result.append(EnvelopeResponse(
             id=env.id,
             name=env.name,
             monthly_amount=str(env.monthly_amount),
             currency=env.currency,
+            category_id=env.category_id,
+            category_name=env.category.name if env.category else None,
             total_provisions=str(provisions),
             total_expenses=str(expenses),
             balance=str(provisions - expenses),
@@ -75,7 +83,9 @@ def create_envelope(data: EnvelopeCreate, db: Session = Depends(get_db)):
     db.refresh(env)
     return EnvelopeResponse(
         id=env.id, name=env.name, monthly_amount=str(env.monthly_amount),
-        currency=env.currency, total_provisions="0", total_expenses="0", balance="0",
+        currency=env.currency, category_id=env.category_id,
+        category_name=env.category.name if env.category else None,
+        total_provisions="0", total_expenses="0", balance="0",
     )
 
 
@@ -83,7 +93,7 @@ def create_envelope(data: EnvelopeCreate, db: Session = Depends(get_db)):
 def update_envelope(env_id: int, data: EnvelopeUpdate, db: Session = Depends(get_db)):
     env = db.query(AnnualEnvelope).filter(AnnualEnvelope.id == env_id).first()
     if not env:
-        raise HTTPException(404, "Envelope not found")
+        raise HTTPException(404, "Enveloppe non trouvée")
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(env, field, value)
     db.commit()
@@ -92,8 +102,10 @@ def update_envelope(env_id: int, data: EnvelopeUpdate, db: Session = Depends(get
     expenses = sum(t.amount for t in env.envelope_transactions if t.type == "expense")
     return EnvelopeResponse(
         id=env.id, name=env.name, monthly_amount=str(env.monthly_amount),
-        currency=env.currency, total_provisions=str(provisions),
-        total_expenses=str(expenses), balance=str(provisions - expenses),
+        currency=env.currency, category_id=env.category_id,
+        category_name=env.category.name if env.category else None,
+        total_provisions=str(provisions), total_expenses=str(expenses),
+        balance=str(provisions - expenses),
     )
 
 
@@ -101,7 +113,7 @@ def update_envelope(env_id: int, data: EnvelopeUpdate, db: Session = Depends(get
 def delete_envelope(env_id: int, db: Session = Depends(get_db)):
     env = db.query(AnnualEnvelope).filter(AnnualEnvelope.id == env_id).first()
     if not env:
-        raise HTTPException(404, "Envelope not found")
+        raise HTTPException(404, "Enveloppe non trouvée")
     db.delete(env)
     db.commit()
     return {"status": "deleted"}
@@ -111,7 +123,7 @@ def delete_envelope(env_id: int, db: Session = Depends(get_db)):
 def envelope_history(env_id: int, db: Session = Depends(get_db)):
     env = db.query(AnnualEnvelope).filter(AnnualEnvelope.id == env_id).first()
     if not env:
-        raise HTTPException(404, "Envelope not found")
+        raise HTTPException(404, "Enveloppe non trouvée")
     txns = (
         db.query(AnnualEnvelopeTransaction)
         .filter(AnnualEnvelopeTransaction.envelope_id == env_id)
@@ -135,8 +147,7 @@ def envelope_history(env_id: int, db: Session = Depends(get_db)):
 def add_envelope_transaction(env_id: int, data: EnvelopeTransactionCreate, db: Session = Depends(get_db)):
     env = db.query(AnnualEnvelope).filter(AnnualEnvelope.id == env_id).first()
     if not env:
-        raise HTTPException(404, "Envelope not found")
-    from datetime import date as date_type
+        raise HTTPException(404, "Enveloppe non trouvée")
     tx = AnnualEnvelopeTransaction(
         envelope_id=env_id,
         type=data.type,
@@ -148,3 +159,46 @@ def add_envelope_transaction(env_id: int, data: EnvelopeTransactionCreate, db: S
     db.add(tx)
     db.commit()
     return {"id": tx.id, "status": "created"}
+
+
+# ───── Import Excel ─────
+
+
+@router.post("/import-excel")
+async def upload_and_import_excel(
+    file: UploadFile = File(...),
+    year: int = Form(2026),
+    db: Session = Depends(get_db),
+):
+    """Import envelopes from an Actual Budget Excel file."""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+    try:
+        result = import_from_excel(db, tmp_path, year)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+    return result
+
+
+# ───── Split Transfer ─────
+
+
+@router.post("/split-transfer/{tx_id}")
+def split_transfer(
+    tx_id: int,
+    month: str = Query(..., description="YYYY-MM"),
+    db: Session = Depends(get_db),
+):
+    """Split a transfer transaction into individual envelope provisions."""
+    return split_transfer_to_provisions(db, tx_id, month)
+
+
+# ───── Link Expenses ─────
+
+
+@router.post("/link-expenses")
+def trigger_link_expenses(db: Session = Depends(get_db)):
+    """Scan all categorized expenses and link them to matching envelopes."""
+    linked = link_all_expenses_to_envelopes(db)
+    return {"linked": linked}
