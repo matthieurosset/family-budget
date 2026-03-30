@@ -135,6 +135,15 @@ export function useCreateRule() {
   });
 }
 
+export function useUpdateRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: number; pattern: string; category_id: number; priority?: number; min_amount?: number | null; max_amount?: number | null; direction?: string | null }) =>
+      api.put(`/rules/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rules"] }),
+  });
+}
+
 export function useDeleteRule() {
   const qc = useQueryClient();
   return useMutation({

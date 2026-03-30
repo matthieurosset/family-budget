@@ -5,6 +5,7 @@ import { CategoriesPage } from "./pages/CategoriesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EnvelopesPage } from "./pages/EnvelopesPage";
 import { ImportPage } from "./pages/ImportPage";
+import { RulesPage } from "./pages/RulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
 
@@ -21,6 +22,7 @@ function App() {
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/rules" element={<RulesPage />} />
             <Route path="/envelopes" element={<EnvelopesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

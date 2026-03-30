@@ -170,6 +170,24 @@ def create_rule(data: RuleCreate, db: Session = Depends(get_db)):
     )
 
 
+@router.put("/api/rules/{rule_id}", response_model=RuleResponse)
+def update_rule(rule_id: int, data: RuleCreate, db: Session = Depends(get_db)):
+    rule = db.query(MappingRule).filter(MappingRule.id == rule_id).first()
+    if not rule:
+        raise HTTPException(404, "Rule not found")
+    for field, value in data.model_dump().items():
+        setattr(rule, field, value)
+    db.commit()
+    db.refresh(rule)
+    return RuleResponse(
+        id=rule.id, pattern=rule.pattern, category_id=rule.category_id,
+        category_name=rule.category.name, priority=rule.priority,
+        min_amount=str(rule.min_amount) if rule.min_amount is not None else None,
+        max_amount=str(rule.max_amount) if rule.max_amount is not None else None,
+        direction=rule.direction, source=rule.source,
+    )
+
+
 @router.delete("/api/rules/{rule_id}")
 def delete_rule(rule_id: int, db: Session = Depends(get_db)):
     rule = db.query(MappingRule).filter(MappingRule.id == rule_id).first()

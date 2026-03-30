@@ -6,6 +6,7 @@ import {
   List,
   PiggyBank,
   Settings,
+  Tag,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
@@ -14,6 +15,7 @@ const navItems = [
   { to: "/transactions", label: "Transactions", icon: List },
   { to: "/import", label: "Import", icon: FileUp },
   { to: "/categories", label: "Catégories", icon: Layers },
+  { to: "/rules", label: "Règles", icon: Tag },
   { to: "/envelopes", label: "Enveloppes", icon: PiggyBank },
   { to: "/settings", label: "Paramètres", icon: Settings },
 ];
