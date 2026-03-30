@@ -5,8 +5,15 @@ import { useUploadImport, useApplyRules } from "../lib/hooks";
 import { currentMonth } from "../lib/utils";
 import type { ImportResponse } from "../lib/types";
 
+const ACCOUNT_TYPES = [
+  { value: "salary", label: "Compte salaire", desc: "Transactions courantes, salaire, dépenses" },
+  { value: "bills", label: "Compte factures", desc: "Factures annuelles — ne compte pas dans les dépenses, met à jour les enveloppes" },
+  { value: "credit_card", label: "Carte de crédit", desc: "Relevé Viseca PDF" },
+];
+
 export function ImportPage() {
   const [month, setMonth] = useState(currentMonth());
+  const [accountType, setAccountType] = useState("salary");
   const [files, setFiles] = useState<File[]>([]);
   const [result, setResult] = useState<ImportResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +37,7 @@ export function ImportPage() {
     if (files.length === 0) return;
     const formData = new FormData();
     formData.append("month", month);
+    formData.append("account_type", accountType);
     files.forEach((f) => formData.append("files", f));
     upload.mutate(formData, { onSuccess: (data) => setResult(data) });
   };
@@ -54,6 +62,29 @@ export function ImportPage() {
             onChange={(e) => setMonth(e.target.value)}
             className="mt-1.5 block w-full max-w-xs rounded-xl border border-sand-200 bg-white px-4 py-2.5 text-[13px] text-sand-700 shadow-sm focus:border-sand-400 focus:outline-none"
           />
+        </div>
+
+        {/* Account type */}
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Type de compte</label>
+          <div className="mt-1.5 flex gap-2">
+            {ACCOUNT_TYPES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setAccountType(t.value)}
+                className={`flex-1 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                  accountType === t.value
+                    ? "border-forest-400 bg-forest-50 shadow-sm"
+                    : "border-sand-200 bg-white hover:border-sand-300"
+                }`}
+              >
+                <p className={`text-[12px] font-semibold ${accountType === t.value ? "text-forest-700" : "text-sand-700"}`}>
+                  {t.label}
+                </p>
+                <p className="mt-0.5 text-[10px] text-sand-400">{t.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Drop zone */}

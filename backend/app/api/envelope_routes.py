@@ -161,6 +161,76 @@ def add_envelope_transaction(env_id: int, data: EnvelopeTransactionCreate, db: S
     return {"id": tx.id, "status": "created"}
 
 
+# ───── Bills Account Transactions ─────
+
+
+@router.get("/bills-transactions")
+def list_bills_transactions(db: Session = Depends(get_db)):
+    """List transactions from the bills account, pending envelope assignment."""
+    from app.models import Transaction
+    txns = (
+        db.query(Transaction)
+        .filter(Transaction.transaction_type == "bills_account")
+        .order_by(Transaction.date.desc())
+        .all()
+    )
+    # Check which are already assigned to an envelope
+    assigned_tx_ids = {
+        row.transaction_id
+        for row in db.query(AnnualEnvelopeTransaction.transaction_id)
+        .filter(AnnualEnvelopeTransaction.transaction_id.is_not(None))
+        .all()
+    }
+    return [
+        {
+            "id": t.id,
+            "date": t.date.isoformat(),
+            "description": t.description,
+            "merchant_name": t.merchant_name,
+            "amount": str(t.amount),
+            "assigned": t.id in assigned_tx_ids,
+        }
+        for t in txns
+    ]
+
+
+@router.post("/assign-transaction/{tx_id}")
+def assign_transaction_to_envelope(
+    tx_id: int,
+    envelope_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Assign a bills account transaction to an envelope as an expense."""
+    from app.models import Transaction
+    tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(404, "Transaction non trouvée")
+    env = db.query(AnnualEnvelope).filter(AnnualEnvelope.id == envelope_id).first()
+    if not env:
+        raise HTTPException(404, "Enveloppe non trouvée")
+
+    # Check not already assigned
+    existing = (
+        db.query(AnnualEnvelopeTransaction)
+        .filter(AnnualEnvelopeTransaction.transaction_id == tx_id)
+        .first()
+    )
+    if existing:
+        return {"status": "already_assigned", "envelope": existing.envelope_id}
+
+    entry = AnnualEnvelopeTransaction(
+        envelope_id=envelope_id,
+        transaction_id=tx_id,
+        type="expense",
+        amount=abs(tx.amount),
+        date=tx.date,
+        note=tx.merchant_name or tx.description[:50],
+    )
+    db.add(entry)
+    db.commit()
+    return {"status": "assigned", "envelope_id": envelope_id}
+
+
 # ───── Import Excel ─────
 
 

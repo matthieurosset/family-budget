@@ -15,6 +15,82 @@ from app.models import (
 )
 
 
+def auto_split_envelope_transfers(db: Session, batch_id: int | None = None) -> dict:
+    """Automatically split internal transfers that match the envelope monthly total.
+
+    When a transfer from the salary account to the bills account is detected,
+    and its amount is close to the sum of all envelope monthly amounts,
+    replace it with individual sub-transactions — one per envelope,
+    each categorized with the envelope's category.
+
+    The original transfer is hidden (transaction_type = 'envelope_transfer_split').
+    """
+    envelopes = db.query(AnnualEnvelope).filter(AnnualEnvelope.monthly_amount > 0).all()
+    if not envelopes:
+        return {"status": "no_envelopes", "splits": 0}
+
+    monthly_total = sum(e.monthly_amount for e in envelopes)
+
+    # Find internal transfers that could be the monthly provision transfer
+    query = db.query(Transaction).filter(
+        Transaction.is_transfer == True,
+        Transaction.amount < 0,  # outgoing from salary account
+        Transaction.transaction_type != "envelope_transfer_split",
+    )
+    if batch_id:
+        query = query.filter(Transaction.import_batch_id == batch_id)
+
+    transfers = query.all()
+    splits = 0
+
+    for transfer in transfers:
+        transfer_amount = abs(transfer.amount)
+        # Check if this transfer is close to the envelope monthly total (±5%)
+        tolerance = monthly_total * Decimal("0.05")
+        if abs(transfer_amount - monthly_total) > tolerance:
+            continue
+
+        # Split: create one child transaction per envelope
+        for env in envelopes:
+            if not env.monthly_amount or env.monthly_amount <= 0:
+                continue
+            child = Transaction(
+                account_id=transfer.account_id,
+                date=transfer.date,
+                value_date=transfer.value_date,
+                effective_month=transfer.effective_month,
+                description=f"Provision {env.name}",
+                merchant_name=env.name,
+                amount=-env.monthly_amount,
+                currency=transfer.currency,
+                category_id=env.category_id,
+                parent_transaction_id=transfer.id,
+                is_transfer=False,
+                transaction_type="envelope_provision",
+                bank_reference=f"SPLIT-{transfer.bank_reference}-{env.id}" if transfer.bank_reference else None,
+                import_batch_id=transfer.import_batch_id,
+            )
+            db.add(child)
+
+            # Also create envelope provision entry
+            env_tx = AnnualEnvelopeTransaction(
+                envelope_id=env.id,
+                type="provision",
+                amount=env.monthly_amount,
+                date=transfer.date,
+                note=f"Provision auto — {transfer.effective_month}",
+            )
+            db.add(env_tx)
+
+        # Hide the original transfer
+        transfer.transaction_type = "envelope_transfer_split"
+        transfer.note = f"Éclaté en {len(envelopes)} provisions d'enveloppes"
+        splits += 1
+
+    db.commit()
+    return {"status": "success", "splits": splits, "envelopes_per_split": len(envelopes)}
+
+
 def link_expense_to_envelope(db: Session, transaction: Transaction) -> bool:
     """If the transaction's category is linked to an envelope, create an expense entry.
 

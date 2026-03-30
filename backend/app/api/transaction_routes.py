@@ -76,7 +76,9 @@ def list_transactions(
         query = query.filter(Transaction.transaction_type == transaction_type)
 
     # Exclude reconciled CC payment lines from normal view
-    query = query.filter(Transaction.transaction_type != "cc_payment_reconciled")
+    query = query.filter(
+        Transaction.transaction_type.not_in(["cc_payment_reconciled", "envelope_transfer_split", "bills_account"]),
+    )
 
     total = query.count()
     items = query.order_by(Transaction.date.desc(), Transaction.id.desc()).offset((page - 1) * page_size).limit(page_size).all()

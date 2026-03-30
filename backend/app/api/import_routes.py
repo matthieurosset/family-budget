@@ -37,6 +37,7 @@ class BatchSummary(BaseModel):
 @router.post("/upload", response_model=ImportResponse)
 async def upload_and_import(
     month: str = Form(..., description="Month to import (YYYY-MM)"),
+    account_type: str = Form("salary", description="Account type: salary, bills, or credit_card"),
     files: list[UploadFile] = File(..., description="camt.053 XML and/or Viseca PDF files"),
     db: Session = Depends(get_db),
 ):
@@ -72,6 +73,13 @@ async def upload_and_import(
         batch = import_files(db, saved_paths, month)
     except Exception as e:
         raise HTTPException(422, f"Import failed: {e}")
+
+    # If bills account: mark all transactions as hidden (envelope-only)
+    if account_type == "bills":
+        txns = db.query(Transaction).filter(Transaction.import_batch_id == batch.id).all()
+        for tx in txns:
+            tx.transaction_type = "bills_account"
+        db.commit()
 
     # Count transactions created
     tx_count = db.query(Transaction).filter(Transaction.import_batch_id == batch.id).count()
