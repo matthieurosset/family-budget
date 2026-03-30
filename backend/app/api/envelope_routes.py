@@ -1,10 +1,7 @@
 """API routes for annual expense envelopes."""
 
-import shutil
-import tempfile
 from datetime import date as date_type
 from decimal import Decimal
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
@@ -13,8 +10,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import AnnualEnvelope, AnnualEnvelopeTransaction
 from app.services.envelope_service import (
-    import_from_excel,
-    link_all_expenses_to_envelopes,
     split_transfer_to_provisions,
 )
 
@@ -24,6 +19,7 @@ router = APIRouter(prefix="/api/envelopes", tags=["envelopes"])
 class EnvelopeCreate(BaseModel):
     name: str
     monthly_amount: Decimal
+    initial_balance: Decimal = Decimal(0)
     currency: str = "CHF"
     category_id: int | None = None
 
@@ -31,6 +27,7 @@ class EnvelopeCreate(BaseModel):
 class EnvelopeUpdate(BaseModel):
     name: str | None = None
     monthly_amount: Decimal | None = None
+    initial_balance: Decimal | None = None
     category_id: int | None = None
 
 
@@ -46,6 +43,7 @@ class EnvelopeResponse(BaseModel):
     id: int
     name: str
     monthly_amount: str
+    initial_balance: str
     currency: str
     category_id: int | None
     category_name: str | None
@@ -61,16 +59,18 @@ def list_envelopes(db: Session = Depends(get_db)):
     for env in envelopes:
         provisions = sum(t.amount for t in env.envelope_transactions if t.type == "provision")
         expenses = sum(t.amount for t in env.envelope_transactions if t.type == "expense")
+        balance = env.initial_balance + provisions - expenses
         result.append(EnvelopeResponse(
             id=env.id,
             name=env.name,
             monthly_amount=str(env.monthly_amount),
+            initial_balance=str(env.initial_balance),
             currency=env.currency,
             category_id=env.category_id,
             category_name=env.category.name if env.category else None,
             total_provisions=str(provisions),
             total_expenses=str(expenses),
-            balance=str(provisions - expenses),
+            balance=str(balance),
         ))
     return result
 
@@ -83,9 +83,9 @@ def create_envelope(data: EnvelopeCreate, db: Session = Depends(get_db)):
     db.refresh(env)
     return EnvelopeResponse(
         id=env.id, name=env.name, monthly_amount=str(env.monthly_amount),
-        currency=env.currency, category_id=env.category_id,
-        category_name=env.category.name if env.category else None,
-        total_provisions="0", total_expenses="0", balance="0",
+        initial_balance=str(env.initial_balance), currency=env.currency,
+        category_id=env.category_id, category_name=env.category.name if env.category else None,
+        total_provisions="0", total_expenses="0", balance=str(env.initial_balance),
     )
 
 
@@ -100,12 +100,13 @@ def update_envelope(env_id: int, data: EnvelopeUpdate, db: Session = Depends(get
     db.refresh(env)
     provisions = sum(t.amount for t in env.envelope_transactions if t.type == "provision")
     expenses = sum(t.amount for t in env.envelope_transactions if t.type == "expense")
+    balance = env.initial_balance + provisions - expenses
     return EnvelopeResponse(
         id=env.id, name=env.name, monthly_amount=str(env.monthly_amount),
-        currency=env.currency, category_id=env.category_id,
-        category_name=env.category.name if env.category else None,
+        initial_balance=str(env.initial_balance), currency=env.currency,
+        category_id=env.category_id, category_name=env.category.name if env.category else None,
         total_provisions=str(provisions), total_expenses=str(expenses),
-        balance=str(provisions - expenses),
+        balance=str(balance),
     )
 
 
@@ -229,26 +230,6 @@ def assign_transaction_to_envelope(
     db.add(entry)
     db.commit()
     return {"status": "assigned", "envelope_id": envelope_id}
-
-
-# ───── Import Excel ─────
-
-
-@router.post("/import-excel")
-async def upload_and_import_excel(
-    file: UploadFile = File(...),
-    year: int = Form(2026),
-    db: Session = Depends(get_db),
-):
-    """Import envelopes from an Actual Budget Excel file."""
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
-    try:
-        result = import_from_excel(db, tmp_path, year)
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-    return result
 
 
 # ───── Split Transfer ─────

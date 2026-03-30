@@ -114,6 +114,7 @@ class AnnualEnvelope(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     monthly_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    initial_balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
     currency: Mapped[str] = mapped_column(String(3), default="CHF")
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
 

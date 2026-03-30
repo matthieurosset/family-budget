@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Wallet, Upload, Tag, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { Wallet, Tag, Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import { useEnvelopes, useCategories } from "../lib/hooks";
 import { formatCHF } from "../lib/utils";
 import { api } from "../lib/api";
@@ -20,6 +20,7 @@ function EnvelopeForm({
 }) {
   const [name, setName] = useState(envelope?.name ?? "");
   const [monthly, setMonthly] = useState(envelope?.monthly_amount ?? "0");
+  const [initialBalance, setInitialBalance] = useState(envelope?.initial_balance ?? "0");
   const [categoryId, setCategoryId] = useState<string>(envelope?.category_id ? String(envelope.category_id) : "");
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
@@ -37,6 +38,7 @@ function EnvelopeForm({
     const body = {
       name: name.trim(),
       monthly_amount: parseFloat(monthly) || 0,
+      initial_balance: parseFloat(initialBalance) || 0,
       category_id: categoryId ? Number(categoryId) : null,
     };
     try {
@@ -103,6 +105,18 @@ function EnvelopeForm({
               onChange={(e) => setMonthly(e.target.value)}
               className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 tabular-nums focus:border-sand-400 focus:bg-white focus:outline-none"
             />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Solde initial (CHF)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={initialBalance}
+              onChange={(e) => setInitialBalance(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 tabular-nums focus:border-sand-400 focus:bg-white focus:outline-none"
+            />
+            <p className="mt-1 text-[10px] text-sand-300">Report de l'année précédente ou montant de départ</p>
           </div>
 
           <div>
@@ -218,28 +232,7 @@ export function EnvelopesPage() {
   const { data: envelopes, isLoading } = useEnvelopes();
   const { data: categories } = useCategories();
   const qc = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
   const [editingEnvelope, setEditingEnvelope] = useState<Envelope | null | "new">(null);
-
-  const handleImportExcel = async () => {
-    const file = fileRef.current?.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("year", "2026");
-      const res = await api.post("/envelopes/import-excel", formData);
-      setImportResult(`${res.data.envelopes_created} enveloppes importées`);
-      qc.invalidateQueries({ queryKey: ["envelopes"] });
-    } catch (e: unknown) {
-      setImportResult(`Erreur: ${(e as Error).message}`);
-    }
-    setImporting(false);
-  };
 
   const totalProvisions = envelopes?.reduce((s, e) => s + parseFloat(e.total_provisions), 0) ?? 0;
   const totalExpenses = envelopes?.reduce((s, e) => s + parseFloat(e.total_expenses), 0) ?? 0;
@@ -262,21 +255,6 @@ export function EnvelopesPage() {
         </button>
       </div>
 
-      {/* Actions */}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <input ref={fileRef} type="file" accept=".xlsx" onChange={handleImportExcel} className="hidden" />
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={importing}
-          className="flex items-center gap-2 rounded-lg border border-sand-200 bg-white px-3 py-1.5 text-[12px] font-medium text-sand-600 transition-colors hover:bg-sand-50"
-        >
-          <Upload className="h-3.5 w-3.5" />
-          {importing ? "Import..." : "Importer Excel"}
-        </button>
-        {importResult && (
-          <span className="text-[12px] text-forest-600">{importResult}</span>
-        )}
-      </div>
 
       {/* Totals */}
       {envelopes && envelopes.length > 0 && (
