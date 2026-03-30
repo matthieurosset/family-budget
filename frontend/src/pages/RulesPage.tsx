@@ -314,7 +314,9 @@ export function RulesPage() {
                       priorité {r.priority}
                     </span>
                   )}
-                  <span className="text-[10px] text-sand-300">{r.source}</span>
+                  {r.source !== "manual" && (
+                    <span className="text-[10px] text-sand-300">{r.source}</span>
+                  )}
                 </div>
               </div>
               <Pencil className="h-3.5 w-3.5 shrink-0 text-sand-300 opacity-0 transition-opacity group-hover:opacity-100" />

@@ -122,7 +122,7 @@ def migrate_from_actual_budget(db: Session, ab_db_path: str | Path) -> dict:
                     pattern=pattern,
                     category_id=target_cat_id,
                     priority=0,
-                    source="actual_budget",
+                    source="manual",
                 )
                 db.add(rule)
                 rules_created += 1
