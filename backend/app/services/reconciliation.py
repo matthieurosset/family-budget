@@ -6,72 +6,46 @@ from sqlalchemy.orm import Session
 
 from app.models import Transaction
 
+VISECA_KEYWORDS = ["viseca", "carte de crédit", "cumulus", "migros bank"]
 
-def find_viseca_payment_line(db: Session, batch_id: int) -> Transaction | None:
-    """Find the Viseca CC payment line in the bank statement for a given import batch.
 
-    The Viseca payment appears as a single debit on the bank account matching
-    the total of the Viseca CC statement. We identify it by looking for a large
-    debit with no category that matches the CC total.
+def find_viseca_payment_lines(db: Session, batch_id: int | None = None) -> list[Transaction]:
+    """Find Viseca CC payment lines in the bank statement by name matching.
+
+    Searches ALL unreconciled bank transactions (not just current batch)
+    for lines containing Viseca-related keywords.
     """
-    # Get all Viseca CC transactions from this batch
-    cc_txns = (
-        db.query(Transaction)
-        .filter(
-            Transaction.import_batch_id == batch_id,
-            Transaction.transaction_type == "credit_card",
-        )
-        .all()
+    query = db.query(Transaction).filter(
+        Transaction.transaction_type != "credit_card",
+        Transaction.transaction_type != "cc_payment_reconciled",
+        Transaction.amount < 0,
     )
-    if not cc_txns:
-        return None
+    if batch_id:
+        query = query.filter(Transaction.import_batch_id == batch_id)
 
-    # Calculate expected CC total (sum of absolute amounts, since CC amounts are stored as negative)
-    cc_total = sum(abs(t.amount) for t in cc_txns)
+    candidates = query.all()
+    matches = []
+    for tx in candidates:
+        desc = ((tx.description or "") + " " + (tx.merchant_name or "")).lower()
+        if any(kw in desc for kw in VISECA_KEYWORDS):
+            matches.append(tx)
 
-    # Find matching bank debit: a single debit close to the CC total
-    # Look in the same batch for bank transactions that could be the CC payment
-    bank_debits = (
-        db.query(Transaction)
-        .filter(
-            Transaction.import_batch_id == batch_id,
-            Transaction.transaction_type != "credit_card",
-            Transaction.amount < 0,  # debit
-            Transaction.category_id.is_(None),
-        )
-        .all()
-    )
-
-    # Find the closest match within 1 CHF tolerance
-    best_match = None
-    best_diff = Decimal("999999")
-    for tx in bank_debits:
-        diff = abs(abs(tx.amount) - cc_total)
-        if diff < best_diff and diff <= Decimal("1.00"):
-            best_diff = diff
-            best_match = tx
-
-    return best_match
+    return matches
 
 
 def reconcile_viseca(db: Session, batch_id: int) -> dict:
     """Reconcile Viseca CC transactions with the bank statement.
 
-    Links individual CC transactions as children of the CC payment line
-    on the bank statement, effectively replacing the single line with detailed sub-transactions.
+    Strategy:
+    1. Find all Viseca payment lines in the bank statement (by keyword matching)
+    2. Mark them as reconciled (cc_payment_reconciled) so they don't appear as expenses
+    3. Link CC transactions from the PDF as children
 
-    Returns a summary dict with reconciliation results.
+    The amounts may not match because the bank payment covers the PREVIOUS CC statement
+    while the imported PDF is the CURRENT statement. Both are valid — the key is to
+    avoid double-counting by hiding the lump-sum bank line.
     """
-    payment_line = find_viseca_payment_line(db, batch_id)
-    if not payment_line:
-        return {
-            "status": "no_match",
-            "message": "No matching Viseca payment line found in bank statement",
-            "cc_transactions": 0,
-            "payment_line_id": None,
-        }
-
-    # Get all CC transactions from this batch
+    # Find CC transactions from this batch
     cc_txns = (
         db.query(Transaction)
         .filter(
@@ -81,29 +55,34 @@ def reconcile_viseca(db: Session, batch_id: int) -> dict:
         .all()
     )
 
-    cc_total = sum(abs(t.amount) for t in cc_txns)
-    payment_amount = abs(payment_line.amount)
-    diff = abs(cc_total - payment_amount)
+    # Find Viseca payment lines in bank transactions (any batch)
+    payment_lines = find_viseca_payment_lines(db)
 
-    # Link CC transactions as children of the payment line
-    for tx in cc_txns:
-        tx.parent_transaction_id = payment_line.id
+    if not payment_lines and not cc_txns:
+        return {
+            "status": "no_match",
+            "message": "Aucune transaction Viseca trouvée",
+            "cc_transactions": 0,
+            "payment_lines_reconciled": 0,
+        }
 
-    # Mark the payment line as reconciled
-    payment_line.transaction_type = "cc_payment_reconciled"
-    payment_line.note = (
-        f"Reconciled with {len(cc_txns)} Viseca CC transactions. "
-        f"CC total: {cc_total} CHF, Bank line: {payment_amount} CHF"
-    )
+    # Reconcile payment lines
+    for pl in payment_lines:
+        pl.transaction_type = "cc_payment_reconciled"
+        if not pl.note:
+            pl.note = "Paiement Viseca — remplacé par les transactions CC détaillées"
+
+    # Link CC transactions to the first payment line (if exists)
+    parent_id = payment_lines[0].id if payment_lines else None
+    if parent_id:
+        for tx in cc_txns:
+            tx.parent_transaction_id = parent_id
 
     db.commit()
 
     return {
         "status": "reconciled",
-        "message": f"Linked {len(cc_txns)} CC transactions to payment line",
+        "message": f"{len(payment_lines)} ligne(s) Viseca reconciliée(s), {len(cc_txns)} transactions CC liées",
         "cc_transactions": len(cc_txns),
-        "cc_total": str(cc_total),
-        "payment_amount": str(payment_amount),
-        "difference": str(diff),
-        "payment_line_id": payment_line.id,
+        "payment_lines_reconciled": len(payment_lines),
     }

@@ -240,9 +240,22 @@ async def import_categorized(file: UploadFile = File(...), db: Session = Depends
 
 
 @router.post("/api/migrate/actual-budget")
-def trigger_migration(db_path: str = Query(..., description="Path to Actual Budget db.sqlite"), db: Session = Depends(get_db)):
-    """Migrate categories and rules from Actual Budget."""
-    path = Path(db_path)
-    if not path.exists():
-        raise HTTPException(404, f"Database not found: {db_path}")
-    return migrate_from_actual_budget(db, path)
+async def trigger_migration(
+    file: UploadFile = File(..., description="Actual Budget db.sqlite file"),
+    db: Session = Depends(get_db),
+):
+    """Migrate categories and rules from an uploaded Actual Budget SQLite database."""
+    import shutil
+    import tempfile
+
+    # Save uploaded file to temp location
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".sqlite") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    try:
+        result = migrate_from_actual_budget(db, tmp_path)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    return result

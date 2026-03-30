@@ -1,15 +1,155 @@
 import { useState } from "react";
-import { motion } from "motion/react";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { useTransactions } from "../lib/hooks";
+import { useSearchParams } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
+import { Search, ChevronLeft, ChevronRight, X, Plus, Tag, Sparkles, Filter } from "lucide-react";
+import { useTransactions, useCategories, useRules, useUpdateTransaction, useCreateRule, useApplyRules } from "../lib/hooks";
 import { currentMonth, formatCHF } from "../lib/utils";
+import type { Category, MappingRule } from "../lib/types";
+
+function CategoryPicker({
+  categories,
+  currentId,
+  onSelect,
+  onClose,
+}: {
+  categories: Category[];
+  currentId: number | null;
+  onSelect: (id: number | null) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const flat: { id: number; name: string; group: string }[] = [];
+  for (const g of categories) {
+    for (const c of g.children) {
+      flat.push({ id: c.id, name: c.name, group: g.name });
+    }
+  }
+  const filtered = search
+    ? flat.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.group.toLowerCase().includes(search.toLowerCase()))
+    : flat;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.15 }}
+      className="absolute left-0 top-full z-20 mt-1 w-64 rounded-xl border border-sand-200 bg-white shadow-lg"
+    >
+      <div className="border-b border-sand-100 p-2">
+        <input
+          autoFocus
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filtrer..."
+          className="w-full rounded-lg bg-sand-50 px-3 py-1.5 text-[12px] text-sand-700 placeholder:text-sand-300 focus:outline-none"
+        />
+      </div>
+      <div className="max-h-60 overflow-y-auto p-1">
+        {currentId && (
+          <button
+            onClick={() => { onSelect(null); onClose(); }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ember-600 hover:bg-ember-50"
+          >
+            <X className="h-3 w-3" />
+            Retirer la catégorie
+          </button>
+        )}
+        {filtered.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => { onSelect(c.id); onClose(); }}
+            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[12px] transition-colors hover:bg-sand-50 ${
+              c.id === currentId ? "bg-forest-50 text-forest-700" : "text-sand-700"
+            }`}
+          >
+            <span>{c.name}</span>
+            <span className="text-[10px] text-sand-400">{c.group}</span>
+          </button>
+        ))}
+        {filtered.length === 0 && (
+          <p className="px-3 py-4 text-center text-[11px] text-sand-300">Aucun résultat</p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
 
 export function TransactionsPage() {
-  const [month, setMonth] = useState(currentMonth());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [month, setMonth] = useState(searchParams.get("month") || currentMonth());
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get("category") || "");
+  const [editingTx, setEditingTx] = useState<number | null>(null);
+  const [ruleProposal, setRuleProposal] = useState<{
+    txId: number;
+    pattern: string;
+    categoryId: number;
+    categoryName: string;
+  } | null>(null);
 
-  const { data, isLoading } = useTransactions({ month, search, page, page_size: 50 });
+  const params: Record<string, string | number | boolean> = { month, search, page, page_size: 50 };
+  if (categoryFilter === "uncategorized") {
+    params.uncategorized = true;
+  } else if (categoryFilter) {
+    params.category_id = categoryFilter;
+  }
+  const { data, isLoading } = useTransactions(params);
+  const { data: categories } = useCategories();
+  const { data: rules } = useRules();
+  const updateTx = useUpdateTransaction();
+  const createRule = useCreateRule();
+  const applyRules = useApplyRules();
+
+  const hasMatchingRule = (merchantName: string | null, description: string, existingRules: MappingRule[]) => {
+    const text = ((merchantName || "") + " " + description).toLowerCase();
+    return existingRules.some((r) => text.includes(r.pattern.toLowerCase()));
+  };
+
+  const getCategoryName = (categoryId: number): string => {
+    if (!categories) return "";
+    for (const g of categories) {
+      for (const c of g.children) {
+        if (c.id === categoryId) return c.name;
+      }
+    }
+    return "";
+  };
+
+  const handleCategorySelect = (txId: number, categoryId: number | null) => {
+    updateTx.mutate({ id: txId, category_id: categoryId });
+    setEditingTx(null);
+
+    if (!categoryId || !rules) {
+      setRuleProposal(null);
+      return;
+    }
+
+    const tx = data?.items.find((t) => t.id === txId);
+    if (!tx) return;
+
+    if (!hasMatchingRule(tx.merchant_name, tx.description, rules)) {
+      const pattern = tx.merchant_name || tx.description.split(" ").slice(0, 3).join(" ");
+      setRuleProposal({
+        txId,
+        pattern,
+        categoryId,
+        categoryName: getCategoryName(categoryId),
+      });
+    } else {
+      setRuleProposal(null);
+    }
+  };
+
+  const handleCreateRule = () => {
+    if (!ruleProposal) return;
+    createRule.mutate(
+      { pattern: ruleProposal.pattern, category_id: ruleProposal.categoryId },
+      { onSuccess: () => setRuleProposal(null) },
+    );
+  };
 
   return (
     <div>
@@ -18,11 +158,21 @@ export function TransactionsPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sand-400">Historique</p>
           <h1 className="mt-1 font-display text-3xl text-sand-900">Transactions</h1>
         </div>
-        {data && (
-          <p className="text-[13px] text-sand-400">
-            <span className="font-semibold text-sand-600">{data.total}</span> transactions
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {data && (
+            <p className="text-[13px] text-sand-400">
+              <span className="font-semibold text-sand-600">{data.total}</span> transactions
+            </p>
+          )}
+          <button
+            onClick={() => applyRules.mutate()}
+            disabled={applyRules.isPending}
+            className="flex items-center gap-1.5 rounded-lg bg-forest-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-forest-700 disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {applyRules.isPending ? "En cours..." : "Catégoriser"}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -33,6 +183,22 @@ export function TransactionsPage() {
           onChange={(e) => { setMonth(e.target.value); setPage(1); }}
           className="rounded-xl border border-sand-200 bg-white px-3.5 py-2 text-[13px] text-sand-700 shadow-sm transition-colors focus:border-sand-400 focus:outline-none"
         />
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-sand-300 pointer-events-none" />
+          <select
+            value={categoryFilter}
+            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+            className="appearance-none rounded-xl border border-sand-200 bg-white py-2 pl-9 pr-8 text-[13px] text-sand-700 shadow-sm transition-colors focus:border-sand-400 focus:outline-none"
+          >
+            <option value="">Toutes les catégories</option>
+            <option value="uncategorized">Non classé</option>
+            {categories?.map((g) =>
+              g.children.map((c) => (
+                <option key={c.id} value={c.id}>{g.name} › {c.name}</option>
+              ))
+            )}
+          </select>
+        </div>
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-sand-300" />
           <input
@@ -91,16 +257,31 @@ export function TransactionsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-5 py-3">
-                      {tx.category_name ? (
-                        <span className="inline-flex rounded-lg bg-forest-50 px-2.5 py-1 text-[11px] font-semibold text-forest-700">
-                          {tx.category_name}
-                        </span>
-                      ) : (
-                        <span className="inline-flex rounded-lg bg-sand-100 px-2.5 py-1 text-[11px] text-sand-400">
-                          Non classé
-                        </span>
-                      )}
+                    <td className="relative px-5 py-3">
+                      <button
+                        onClick={() => setEditingTx(editingTx === tx.id ? null : tx.id)}
+                        className="transition-colors"
+                      >
+                        {tx.category_name ? (
+                          <span className="inline-flex rounded-lg bg-forest-50 px-2.5 py-1 text-[11px] font-semibold text-forest-700 hover:bg-forest-100">
+                            {tx.category_name}
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-lg bg-sand-100 px-2.5 py-1 text-[11px] text-sand-400 hover:bg-sand-200">
+                            Non classé
+                          </span>
+                        )}
+                      </button>
+                      <AnimatePresence>
+                        {editingTx === tx.id && categories && (
+                          <CategoryPicker
+                            categories={categories}
+                            currentId={tx.category_id}
+                            onSelect={(catId) => handleCategorySelect(tx.id, catId)}
+                            onClose={() => setEditingTx(null)}
+                          />
+                        )}
+                      </AnimatePresence>
                     </td>
                     <td className={`whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums ${
                       parseFloat(tx.amount) >= 0 ? "text-forest-600" : "text-sand-800"
@@ -108,7 +289,53 @@ export function TransactionsPage() {
                       {formatCHF(tx.amount)}
                     </td>
                   </motion.tr>
-                ))
+                )).flatMap((row, i) => {
+                  const tx = data!.items[i];
+                  const proposal = ruleProposal?.txId === tx.id ? ruleProposal : null;
+                  if (!proposal) return [row];
+                  return [
+                    row,
+                    <tr key={`rule-${tx.id}`}>
+                      <td colSpan={4} className="px-5 py-0">
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-dusk-50 px-4 py-3 my-1">
+                            <Tag className="h-3.5 w-3.5 text-dusk-400" />
+                            <span className="text-[12px] text-dusk-600">Créer une règle ?</span>
+                            <input
+                              type="text"
+                              value={proposal.pattern}
+                              onChange={(e) => setRuleProposal({ ...proposal, pattern: e.target.value })}
+                              className="rounded-lg border border-dusk-200 bg-white px-3 py-1 text-[12px] font-mono text-sand-700 focus:border-dusk-400 focus:outline-none"
+                            />
+                            <span className="text-[11px] text-dusk-400">→</span>
+                            <span className="rounded-lg bg-forest-50 px-2 py-0.5 text-[11px] font-semibold text-forest-700">
+                              {proposal.categoryName}
+                            </span>
+                            <button
+                              onClick={handleCreateRule}
+                              disabled={!proposal.pattern.trim() || createRule.isPending}
+                              className="flex items-center gap-1 rounded-lg bg-dusk-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-dusk-700 disabled:opacity-50"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Créer
+                            </button>
+                            <button
+                              onClick={() => setRuleProposal(null)}
+                              className="rounded-lg px-2 py-1 text-[11px] text-dusk-400 hover:bg-dusk-100 hover:text-dusk-600"
+                            >
+                              Ignorer
+                            </button>
+                          </div>
+                        </motion.div>
+                      </td>
+                    </tr>,
+                  ];
+                })
               )}
             </tbody>
           </table>

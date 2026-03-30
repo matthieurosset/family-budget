@@ -1,18 +1,22 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "motion/react";
-import { Database, Download, ExternalLink, Check, AlertCircle } from "lucide-react";
+import { Database, Download, ExternalLink, Check, AlertCircle, Upload } from "lucide-react";
 import { api } from "../lib/api";
 
 export function SettingsPage() {
-  const [migrationPath, setMigrationPath] = useState("");
+  const [migrationFile, setMigrationFile] = useState<File | null>(null);
   const [migrationResult, setMigrationResult] = useState<{ status: string; data?: unknown; error?: string } | null>(null);
   const [migrating, setMigrating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleMigrate = async () => {
+    if (!migrationFile) return;
     setMigrating(true);
     setMigrationResult(null);
     try {
-      const res = await api.post(`/migrate/actual-budget?db_path=${encodeURIComponent(migrationPath)}`);
+      const formData = new FormData();
+      formData.append("file", migrationFile);
+      const res = await api.post("/migrate/actual-budget", formData);
       setMigrationResult({ status: "success", data: res.data });
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || (e as Error).message;
@@ -46,17 +50,24 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <input
-              type="text"
-              placeholder="/chemin/vers/db.sqlite"
-              value={migrationPath}
-              onChange={(e) => setMigrationPath(e.target.value)}
-              className="flex-1 rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 font-mono placeholder:text-sand-300 focus:border-sand-400 focus:bg-white focus:outline-none"
+              ref={fileInputRef}
+              type="file"
+              accept=".sqlite,.db"
+              onChange={(e) => setMigrationFile(e.target.files?.[0] || null)}
+              className="hidden"
             />
             <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-600 transition-colors hover:bg-sand-100"
+            >
+              <Upload className="h-4 w-4" />
+              {migrationFile ? migrationFile.name : "Choisir db.sqlite"}
+            </button>
+            <button
               onClick={handleMigrate}
-              disabled={!migrationPath || migrating}
+              disabled={!migrationFile || migrating}
               className="rounded-xl bg-dusk-600 px-5 py-2.5 text-[13px] font-semibold text-white shadow-md shadow-dusk-600/20 transition-all hover:bg-dusk-700 disabled:opacity-50"
             >
               {migrating ? "Migration..." : "Migrer"}

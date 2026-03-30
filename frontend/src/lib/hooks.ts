@@ -35,6 +35,23 @@ export function useAnomalies(month: string) {
   });
 }
 
+export function useCategoryTrends(categoryId: number | null, months: number = 12) {
+  return useQuery<{ month: string; total: string }[]>({
+    queryKey: ["trends", categoryId, months],
+    queryFn: () => api.get(`/dashboard/trends?category_id=${categoryId}&months=${months}`).then((r) => r.data),
+    enabled: !!categoryId,
+  });
+}
+
+export function usePeriodComparison(p1From: string, p1To: string, p2From: string, p2To: string) {
+  return useQuery<{ category: string; period1: string; period2: string; diff: string }[]>({
+    queryKey: ["comparison", p1From, p1To, p2From, p2To],
+    queryFn: () =>
+      api.get(`/dashboard/comparison?period1_from=${p1From}&period1_to=${p1To}&period2_from=${p2From}&period2_to=${p2To}`).then((r) => r.data),
+    enabled: !!p1From && !!p2From,
+  });
+}
+
 // Transactions
 export function useTransactions(params: Record<string, string | number | boolean>) {
   const searchParams = new URLSearchParams();
@@ -92,10 +109,44 @@ export function useApplyRules() {
   });
 }
 
+export function useCreateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; parent_id?: number | null; month_shift_days?: number | null }) =>
+      api.post("/categories", data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+export function useDeleteCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/categories/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+export function useCreateRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { pattern: string; category_id: number; priority?: number }) =>
+      api.post("/rules", data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rules"] }),
+  });
+}
+
+export function useDeleteRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/rules/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rules"] }),
+  });
+}
+
 export function useUpdateTransaction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: number; category_id?: number; note?: string }) =>
+    mutationFn: ({ id, ...data }: { id: number; category_id?: number | null; note?: string }) =>
       api.patch(`/transactions/${id}`, data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["transactions"] }),
   });

@@ -10,20 +10,48 @@ from sqlalchemy.orm import Session
 from app.models import Category, MappingRule, Transaction, VisecaCategoryMapping
 
 
+def _get_or_create_transfer_category(db: Session) -> int:
+    """Get or create a 'Transferts' category for internal transfers."""
+    cat = db.query(Category).filter(Category.name == "Transferts", Category.parent_id.is_(None)).first()
+    if cat:
+        return cat.id
+    cat = Category(name="Transferts", parent_id=None, sort_order=999)
+    db.add(cat)
+    db.flush()
+    return cat.id
+
+
 def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
     """Apply mapping rules to uncategorized transactions.
+
+    Also auto-categorizes internal transfers.
 
     If transaction_ids is provided, only process those transactions.
     Otherwise, process all uncategorized transactions.
 
     Returns a summary of categorization results.
     """
+    # Auto-categorize transfers first
+    transfer_cat_id = None
+    transfer_query = db.query(Transaction).filter(
+        Transaction.category_id.is_(None),
+        Transaction.is_transfer == True,
+    )
+    if transaction_ids:
+        transfer_query = transfer_query.filter(Transaction.id.in_(transaction_ids))
+    uncategorized_transfers = transfer_query.all()
+
+    transfers_categorized = 0
+    if uncategorized_transfers:
+        transfer_cat_id = _get_or_create_transfer_category(db)
+        for tx in uncategorized_transfers:
+            tx.category_id = transfer_cat_id
+            transfers_categorized += 1
+
     # Get rules ordered by priority (higher priority first)
     rules = db.query(MappingRule).order_by(MappingRule.priority.desc()).all()
-    if not rules:
-        return {"status": "no_rules", "categorized": 0, "total_uncategorized": 0}
 
-    # Get uncategorized transactions
+    # Get remaining uncategorized transactions
     query = db.query(Transaction).filter(Transaction.category_id.is_(None))
     if transaction_ids:
         query = query.filter(Transaction.id.in_(transaction_ids))
@@ -44,8 +72,10 @@ def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
     db.commit()
     return {
         "status": "success",
-        "categorized": categorized_count,
-        "total_uncategorized": len(uncategorized),
+        "categorized": categorized_count + transfers_categorized,
+        "transfers": transfers_categorized,
+        "rules_matched": categorized_count,
+        "total_uncategorized": len(uncategorized) + transfers_categorized,
         "remaining": len(uncategorized) - categorized_count,
     }
 
