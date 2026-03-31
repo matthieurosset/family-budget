@@ -119,26 +119,50 @@ export function SettingsPage() {
             <ol className="space-y-2 text-[12px] text-sand-600">
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">1</span>
-                Exportez le CSV des transactions non catégorisées
+                Exportez le fichier Excel des transactions non catégorisées
               </li>
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">2</span>
-                Donnez le fichier à Claude Code pour catégorisation
+                Donnez-le à Claude : « Catégorise ces transactions avec les catégories de l'onglet Catégories »
               </li>
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">3</span>
-                Réimportez le CSV avec les catégories et nouvelles règles
+                Réimportez le fichier Excel complété
               </li>
             </ol>
           </div>
 
-          <a
-            href="/api/transactions/uncategorized/export"
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-sand-900 px-5 py-2.5 text-[13px] font-semibold text-sand-50 shadow-lg shadow-sand-900/20 transition-all hover:bg-sand-800"
-          >
-            <Download className="h-4 w-4" />
-            Exporter les non-catégorisées (CSV)
-          </a>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a
+              href="/api/transactions/uncategorized/export"
+              className="inline-flex items-center gap-2 rounded-xl bg-sand-900 px-5 py-2.5 text-[13px] font-semibold text-sand-50 shadow-lg shadow-sand-900/20 transition-all hover:bg-sand-800"
+            >
+              <Download className="h-4 w-4" />
+              Exporter (Excel)
+            </a>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-sand-200 bg-white px-5 py-2.5 text-[13px] font-medium text-sand-700 transition-colors hover:bg-sand-50">
+              <Upload className="h-4 w-4" />
+              Réimporter (Excel)
+              <input
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  try {
+                    const res = await api.post("/transactions/uncategorized/import", formData);
+                    setMigrationResult({ status: "success", data: res.data });
+                  } catch (err: unknown) {
+                    const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || (err as Error).message;
+                    setMigrationResult({ status: "error", error: String(msg) });
+                  }
+                }}
+              />
+            </label>
+          </div>
         </motion.div>
 
         {/* API docs */}

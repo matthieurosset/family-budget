@@ -170,71 +170,164 @@ def apply_month_shifts(db: Session, batch_id: int | None = None) -> int:
     return updated
 
 
-def export_uncategorized_csv(db: Session) -> str:
-    """Export uncategorized transactions as CSV for Claude Code processing.
+def export_uncategorized_excel(db: Session) -> bytes:
+    """Export uncategorized transactions as Excel for Claude Code processing.
 
-    Returns CSV content as a string.
+    Creates a workbook with 3 sheets:
+    1. Instructions — how to fill it
+    2. Transactions — uncategorized transactions with a 'category' column to fill
+    3. Catégories — list of all available category names
+
+    Returns Excel file content as bytes.
     """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = openpyxl.Workbook()
+
+    # ── Sheet 1: Instructions ──
+    ws_instr = wb.active
+    ws_instr.title = "Instructions"
+    instructions = [
+        "CATÉGORISATION DES TRANSACTIONS",
+        "",
+        "Ce fichier contient les transactions non catégorisées.",
+        "",
+        "Comment faire :",
+        "1. Allez dans l'onglet 'Transactions'",
+        "2. Remplissez la colonne 'catégorie' avec le nom exact d'une catégorie",
+        "3. Les catégories disponibles sont listées dans l'onglet 'Catégories'",
+        "4. Optionnel : remplissez 'nouvelle_règle' avec un pattern pour créer une règle automatique",
+        "5. Sauvegardez et réimportez le fichier dans l'application",
+        "",
+        "Notes :",
+        "- Le nom de catégorie doit correspondre exactement (insensible aux majuscules/accents)",
+        "- La colonne 'nouvelle_règle' créera une règle de mapping automatique",
+        "- Laissez 'catégorie' vide pour ignorer une transaction",
+    ]
+    for i, line in enumerate(instructions, 1):
+        cell = ws_instr.cell(row=i, column=1, value=line)
+        if i == 1:
+            cell.font = Font(bold=True, size=14)
+        elif line.startswith(("Comment", "Notes")):
+            cell.font = Font(bold=True, size=11)
+    ws_instr.column_dimensions["A"].width = 80
+
+    # ── Sheet 2: Transactions ──
+    ws_tx = wb.create_sheet("Transactions")
+    headers = ["id", "date", "description", "marchand", "montant", "catégorie", "nouvelle_règle"]
+    header_fill = PatternFill(start_color="2d8a5e", end_color="2d8a5e", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+
+    for col, header in enumerate(headers, 1):
+        cell = ws_tx.cell(row=1, column=col, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
     uncategorized = (
         db.query(Transaction)
-        .filter(Transaction.category_id.is_(None))
+        .filter(
+            Transaction.category_id.is_(None),
+            Transaction.transaction_type.not_in(["cc_payment_reconciled", "envelope_transfer_split", "bills_account"]),
+        )
         .order_by(Transaction.date)
         .all()
     )
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["id", "date", "description", "merchant_name", "amount", "currency", "transaction_type"])
+    for i, tx in enumerate(uncategorized, 2):
+        ws_tx.cell(row=i, column=1, value=tx.id)
+        ws_tx.cell(row=i, column=2, value=tx.date.isoformat())
+        ws_tx.cell(row=i, column=3, value=tx.description)
+        ws_tx.cell(row=i, column=4, value=tx.merchant_name or "")
+        ws_tx.cell(row=i, column=5, value=float(tx.amount))
+        ws_tx.cell(row=i, column=6, value="")  # à remplir
+        ws_tx.cell(row=i, column=7, value="")  # optionnel
 
-    for tx in uncategorized:
-        writer.writerow([
-            tx.id,
-            tx.date.isoformat(),
-            tx.description,
-            tx.merchant_name or "",
-            str(tx.amount),
-            tx.currency,
-            tx.transaction_type or "",
-        ])
+    # Column widths
+    ws_tx.column_dimensions["A"].width = 8
+    ws_tx.column_dimensions["B"].width = 12
+    ws_tx.column_dimensions["C"].width = 50
+    ws_tx.column_dimensions["D"].width = 25
+    ws_tx.column_dimensions["E"].width = 12
+    ws_tx.column_dimensions["F"].width = 25
+    ws_tx.column_dimensions["G"].width = 25
 
-    return output.getvalue()
+    # Highlight the columns to fill
+    fill_yellow = PatternFill(start_color="FFF9E6", end_color="FFF9E6", fill_type="solid")
+    for row in range(2, len(uncategorized) + 2):
+        ws_tx.cell(row=row, column=6).fill = fill_yellow
+        ws_tx.cell(row=row, column=7).fill = fill_yellow
+
+    # ── Sheet 3: Catégories ──
+    ws_cat = wb.create_sheet("Catégories")
+    ws_cat.cell(row=1, column=1, value="Groupe").font = Font(bold=True)
+    ws_cat.cell(row=1, column=2, value="Catégorie").font = Font(bold=True)
+
+    categories = db.query(Category).filter(Category.parent_id.is_not(None)).order_by(Category.name).all()
+    cat_lookup: dict[int, str] = {}
+    all_cats = db.query(Category).all()
+    for c in all_cats:
+        cat_lookup[c.id] = c.name
+
+    row = 2
+    for cat in categories:
+        parent_name = cat_lookup.get(cat.parent_id, "") if cat.parent_id else ""
+        ws_cat.cell(row=row, column=1, value=parent_name)
+        ws_cat.cell(row=row, column=2, value=cat.name)
+        row += 1
+
+    ws_cat.column_dimensions["A"].width = 25
+    ws_cat.column_dimensions["B"].width = 30
+
+    # Save to bytes
+    from io import BytesIO
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
 
 
-def import_categorized_csv(db: Session, csv_content: str) -> dict:
-    """Import categorized transactions from CSV (after Claude Code processing).
+def import_categorized_excel(db: Session, file_content: bytes) -> dict:
+    """Import categorized transactions from Excel (after Claude Code processing).
 
-    Expected CSV format: id,category,new_rule_pattern,new_rule_category
-    - id: transaction ID to categorize
-    - category: category name to assign
-    - new_rule_pattern: optional pattern for a new mapping rule
-    - new_rule_category: optional category name for the new rule
+    Reads the 'Transactions' sheet. Expected columns:
+    - id: transaction ID
+    - catégorie: category name to assign
+    - nouvelle_règle: optional pattern for a new mapping rule
 
     Returns a summary of imports.
     """
-    reader = csv.DictReader(io.StringIO(csv_content))
-    categorized = 0
-    rules_created = 0
+    import openpyxl
+    from io import BytesIO
 
-    # Build category name -> ID lookup
+    wb = openpyxl.load_workbook(BytesIO(file_content))
+    ws = wb["Transactions"]
+
+    # Build category name -> ID lookup (accent + case insensitive)
     categories = db.query(Category).all()
     cat_lookup: dict[str, int] = {}
     for cat in categories:
-        cat_lookup[cat.name.lower()] = cat.id
+        cat_lookup[_normalize(cat.name)] = cat.id
 
-    for row in reader:
-        tx_id = int(row["id"])
-        category_name = row.get("category", "").strip()
-        new_pattern = row.get("new_rule_pattern", "").strip()
-        new_rule_cat = row.get("new_rule_category", "").strip()
+    categorized = 0
+    rules_created = 0
 
-        # Assign category to transaction
-        if category_name:
-            cat_id = cat_lookup.get(category_name.lower())
-            if cat_id:
-                tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
-                if tx:
-                    tx.category_id = cat_id
-                    categorized += 1
+    for row in ws.iter_rows(min_row=2, values_only=False):
+        tx_id = row[0].value
+        category_name = str(row[5].value or "").strip()
+        new_pattern = str(row[6].value or "").strip()
+
+        if not tx_id or not category_name:
+            continue
+
+        cat_id = cat_lookup.get(_normalize(category_name))
+        if not cat_id:
+            continue
+
+        tx = db.query(Transaction).filter(Transaction.id == int(tx_id)).first()
+        if tx:
+            tx.category_id = cat_id
+            categorized += 1
 
         # Create new rule if specified
         if new_pattern and new_rule_cat:

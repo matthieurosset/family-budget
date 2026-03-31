@@ -14,8 +14,6 @@ from app.services.categorization import (
     apply_month_shifts,
     apply_rules,
     apply_viseca_mappings,
-    export_uncategorized_csv,
-    import_categorized_csv,
 )
 
 router = APIRouter(tags=["categories"])
@@ -249,21 +247,22 @@ def trigger_month_shifts(batch_id: int | None = Query(None), db: Session = Depen
 
 @router.get("/api/transactions/uncategorized/export")
 def export_uncategorized(db: Session = Depends(get_db)):
-    """Export uncategorized transactions as CSV for Claude Code."""
-    csv_content = export_uncategorized_csv(db)
+    """Export uncategorized transactions as Excel for Claude Code."""
+    from app.services.categorization import export_uncategorized_excel
+    content = export_uncategorized_excel(db)
     return StreamingResponse(
-        iter([csv_content]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=uncategorized.csv"},
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=a_categoriser.xlsx"},
     )
 
 
 @router.post("/api/transactions/uncategorized/import")
 async def import_categorized(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Import categorized transactions from CSV (after Claude Code processing)."""
+    """Import categorized transactions from Excel (after Claude Code processing)."""
+    from app.services.categorization import import_categorized_excel
     content = await file.read()
-    csv_content = content.decode("utf-8")
-    return import_categorized_csv(db, csv_content)
+    return import_categorized_excel(db, content)
 
 
 # ───── Migration ─────
