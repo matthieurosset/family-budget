@@ -245,11 +245,3 @@ def split_transfer(
     return split_transfer_to_provisions(db, tx_id, month)
 
 
-# ───── Link Expenses ─────
-
-
-@router.post("/link-expenses")
-def trigger_link_expenses(db: Session = Depends(get_db)):
-    """Scan all categorized expenses and link them to matching envelopes."""
-    linked = link_all_expenses_to_envelopes(db)
-    return {"linked": linked}

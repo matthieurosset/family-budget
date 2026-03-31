@@ -93,10 +93,9 @@ def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
 
     db.commit()
 
-    # Auto-split envelope transfers and link expenses
-    from app.services.envelope_service import auto_split_envelope_transfers, link_all_expenses_to_envelopes
+    # Auto-split envelope transfers (provisions only — expenses come from bills account import)
+    from app.services.envelope_service import auto_split_envelope_transfers
     split_result = auto_split_envelope_transfers(db)
-    envelopes_linked = link_all_expenses_to_envelopes(db)
 
     return {
         "status": "success",
@@ -104,7 +103,6 @@ def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
         "transfers": transfers_categorized,
         "rules_matched": categorized_count,
         "envelope_splits": split_result.get("splits", 0),
-        "envelopes_linked": envelopes_linked,
         "total_uncategorized": len(uncategorized) + transfers_categorized,
         "remaining": len(uncategorized) - categorized_count,
     }
