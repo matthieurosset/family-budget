@@ -9,6 +9,11 @@ export function formatCHF(amount: string | number): string {
 
 export function currentMonth(): string {
   const d = new Date();
+  // Budget month starts on the 10th
+  if (d.getDate() < 10) {
+    const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+  }
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 

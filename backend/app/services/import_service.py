@@ -23,14 +23,18 @@ def identify_file(file_path: Path) -> str:
     raise ValueError(f"Unsupported file type: {suffix}")
 
 
-def _compute_effective_month(tx_date: date, month_shift_days: int | None) -> str:
-    """Compute the effective month for a transaction, applying category-based shift.
+MONTH_START_DAY = 10  # Budget month runs from the 10th to the 9th of next month
 
-    If month_shift_days is set and the transaction falls within the first N days
-    of a month, attribute it to the previous month.
+
+def _compute_effective_month(tx_date: date) -> str:
+    """Compute the effective budget month for a transaction.
+
+    Budget months run from the 10th to the 9th of the next month.
+    Example: Jan 10 to Feb 9 = "January", Feb 10 to Mar 9 = "February".
+    A transaction on Jan 5 belongs to December.
     """
-    if month_shift_days and tx_date.day <= month_shift_days:
-        # Shift to previous month
+    if tx_date.day < MONTH_START_DAY:
+        # Before the 10th → previous month
         if tx_date.month == 1:
             return f"{tx_date.year - 1}-12"
         return f"{tx_date.year}-{tx_date.month - 1:02d}"
@@ -80,7 +84,7 @@ def import_camt053(db: Session, file_path: Path, batch: ImportBatch) -> list[Tra
             continue
 
         signed_amount = -parsed_tx.amount if parsed_tx.is_debit else parsed_tx.amount
-        effective_month = _compute_effective_month(parsed_tx.date, None)  # shift applied later by category
+        effective_month = _compute_effective_month(parsed_tx.date)  # shift applied later by category
 
         tx = Transaction(
             account_id=account.id,
@@ -137,7 +141,7 @@ def import_viseca_pdf(db: Session, file_path: Path, batch: ImportBatch) -> list[
         # Negate: charges (positive from parser) become negative (expense),
         # refunds (negative from parser) become positive (money back)
         signed_amount = -parsed_tx.amount_chf
-        effective_month = _compute_effective_month(parsed_tx.transaction_date, None)
+        effective_month = _compute_effective_month(parsed_tx.transaction_date)
 
         tx = Transaction(
             account_id=account.id,

@@ -146,32 +146,21 @@ def apply_viseca_mappings(db: Session, transaction_ids: list[int] | None = None)
 
 
 def apply_month_shifts(db: Session, batch_id: int | None = None) -> int:
-    """Recompute effective_month for transactions based on category month_shift_days.
+    """Recompute effective_month for all transactions using the 10th-to-9th rule.
 
     Returns the number of transactions updated.
     """
-    query = db.query(Transaction).filter(Transaction.category_id.is_not(None))
+    from app.services.import_service import _compute_effective_month
+
+    query = db.query(Transaction)
     if batch_id:
         query = query.filter(Transaction.import_batch_id == batch_id)
 
     transactions = query.all()
     updated = 0
 
-    # Cache category shifts
-    shift_cache: dict[int, int | None] = {}
     for tx in transactions:
-        if tx.category_id not in shift_cache:
-            cat = db.query(Category).filter(Category.id == tx.category_id).first()
-            shift_cache[tx.category_id] = cat.month_shift_days if cat else None
-
-        shift_days = shift_cache[tx.category_id]
-        if shift_days and tx.date.day <= shift_days:
-            if tx.date.month == 1:
-                new_month = f"{tx.date.year - 1}-12"
-            else:
-                new_month = f"{tx.date.year}-{tx.date.month - 1:02d}"
-        else:
-            new_month = f"{tx.date.year}-{tx.date.month:02d}"
+        new_month = _compute_effective_month(tx.date)
 
         if tx.effective_month != new_month:
             tx.effective_month = new_month
