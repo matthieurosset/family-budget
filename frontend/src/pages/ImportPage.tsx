@@ -34,7 +34,6 @@ export function ImportPage() {
   const handleUpload = () => {
     if (files.length === 0) return;
     const formData = new FormData();
-    formData.append("month", "auto");
     formData.append("account_type", accountType);
     files.forEach((f) => formData.append("files", f));
     upload.mutate(formData, { onSuccess: (data) => setResult(data) });

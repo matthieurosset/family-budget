@@ -36,19 +36,13 @@ class BatchSummary(BaseModel):
 
 @router.post("/upload", response_model=ImportResponse)
 async def upload_and_import(
-    month: str = Form(..., description="Month to import (YYYY-MM)"),
     account_type: str = Form("salary", description="Account type: salary, bills, or credit_card"),
     files: list[UploadFile] = File(..., description="camt.053 XML and/or Viseca PDF files"),
     db: Session = Depends(get_db),
 ):
-    """Upload bank statement files and import them.
-
-    Accepts multiple camt.053 XML files (one per bank account) and optionally
-    one Viseca PDF credit card statement. All files are processed in a single batch.
-    """
-    # Validate month format
-    if len(month) != 7 or month[4] != "-":
-        raise HTTPException(400, "Month must be in YYYY-MM format")
+    """Upload bank statement files and import them."""
+    from datetime import date
+    month = f"{date.today().year}-{date.today().month:02d}"
 
     # Save uploaded files to disk
     upload_dir = settings.upload_dir / month
