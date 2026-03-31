@@ -329,23 +329,21 @@ def import_categorized_excel(db: Session, file_content: bytes) -> dict:
             tx.category_id = cat_id
             categorized += 1
 
-        # Create new rule if specified
-        if new_pattern and new_rule_cat:
-            rule_cat_id = cat_lookup.get(new_rule_cat.lower())
-            if rule_cat_id:
-                existing = (
-                    db.query(MappingRule)
-                    .filter(MappingRule.pattern == new_pattern, MappingRule.category_id == rule_cat_id)
-                    .first()
+        # Create new rule if specified (uses same category as the transaction)
+        if new_pattern and cat_id:
+            existing = (
+                db.query(MappingRule)
+                .filter(MappingRule.pattern == new_pattern, MappingRule.category_id == cat_id)
+                .first()
+            )
+            if not existing:
+                rule = MappingRule(
+                    pattern=new_pattern,
+                    category_id=cat_id,
+                    source="claude_code",
                 )
-                if not existing:
-                    rule = MappingRule(
-                        pattern=new_pattern,
-                        category_id=rule_cat_id,
-                        source="claude_code",
-                    )
-                    db.add(rule)
-                    rules_created += 1
+                db.add(rule)
+                rules_created += 1
 
     db.commit()
     return {"categorized": categorized, "rules_created": rules_created}
