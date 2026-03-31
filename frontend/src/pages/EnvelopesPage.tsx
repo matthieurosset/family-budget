@@ -231,7 +231,6 @@ function BillsAssignment({ envelopes }: { envelopes: Envelope[] }) {
 export function EnvelopesPage() {
   const { data: envelopes, isLoading } = useEnvelopes();
   const { data: categories } = useCategories();
-  const qc = useQueryClient();
   const [editingEnvelope, setEditingEnvelope] = useState<Envelope | null | "new">(null);
 
   const totalProvisions = envelopes?.reduce((s, e) => s + parseFloat(e.total_provisions), 0) ?? 0;

@@ -77,7 +77,7 @@ function CategoryPicker({
 }
 
 export function TransactionsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [month, setMonth] = useState(searchParams.get("month") || currentMonth());
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);

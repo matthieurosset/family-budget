@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Search, Plus, Tag, X, Check, Trash2, Pencil, Filter } from "lucide-react";
+import { Search, Plus, X, Check, Trash2, Pencil, Filter } from "lucide-react";
 import { useCategories, useRules, useCreateRule, useUpdateRule, useDeleteRule } from "../lib/hooks";
 import type { Category, MappingRule } from "../lib/types";
 
