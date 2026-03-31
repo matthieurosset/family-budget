@@ -266,62 +266,56 @@ export function RulesPage() {
         </div>
       </div>
 
-      {/* Rules list */}
+      {/* Rules grid */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="mt-5 space-y-2"
+        className="mt-5"
       >
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-sand-200 border-t-forest-500" />
           </div>
         ) : filtered && filtered.length > 0 ? (
-          filtered.map((r) => (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((r) => (
             <div
               key={r.id}
               onClick={() => setEditingRule(r)}
-              className="group flex cursor-pointer items-start gap-3 rounded-2xl border border-sand-200/60 bg-white px-5 py-4 shadow-sm transition-all hover:shadow-md hover:border-sand-300"
+              className="group cursor-pointer rounded-xl border border-sand-200/60 bg-white px-4 py-3 shadow-sm transition-all hover:shadow-md hover:border-sand-300"
             >
-              <Tag className="mt-0.5 h-4 w-4 shrink-0 text-sand-300" />
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <code className="text-[14px] font-semibold text-sand-800">{r.pattern}</code>
-                  <span className="text-[12px] text-sand-300">→</span>
-                  <span className="rounded-lg bg-forest-50 px-2.5 py-0.5 text-[12px] font-semibold text-forest-700">
-                    {r.category_name}
-                  </span>
-                </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <div className="flex items-center justify-between">
+                <code className="text-[13px] font-semibold text-sand-800 truncate">{r.pattern}</code>
+                <Pencil className="h-3 w-3 shrink-0 text-sand-300 opacity-0 transition-opacity group-hover:opacity-100 ml-2" />
+              </div>
+              <div className="mt-1.5">
+                <span className="rounded-md bg-forest-50 px-2 py-0.5 text-[11px] font-semibold text-forest-700">
+                  {r.category_name}
+                </span>
+              </div>
+              {(r.direction || r.min_amount || r.max_amount) && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   {r.direction && (
-                    <span className="rounded-md bg-dusk-50 px-2 py-0.5 text-[10px] font-semibold text-dusk-600">
+                    <span className="rounded bg-dusk-50 px-1.5 py-0.5 text-[9px] font-semibold text-dusk-600">
                       {r.direction === "income" ? "Revenus" : "Dépenses"}
                     </span>
                   )}
                   {r.min_amount && (
-                    <span className="rounded-md bg-sand-100 px-2 py-0.5 text-[10px] tabular-nums text-sand-600">
-                      min {r.min_amount} CHF
+                    <span className="rounded bg-sand-100 px-1.5 py-0.5 text-[9px] tabular-nums text-sand-600">
+                      ≥{r.min_amount}
                     </span>
                   )}
                   {r.max_amount && (
-                    <span className="rounded-md bg-sand-100 px-2 py-0.5 text-[10px] tabular-nums text-sand-600">
-                      max {r.max_amount} CHF
+                    <span className="rounded bg-sand-100 px-1.5 py-0.5 text-[9px] tabular-nums text-sand-600">
+                      ≤{r.max_amount}
                     </span>
-                  )}
-                  {r.priority > 0 && (
-                    <span className="rounded-md bg-sand-100 px-2 py-0.5 text-[10px] text-sand-500">
-                      priorité {r.priority}
-                    </span>
-                  )}
-                  {r.source !== "manual" && (
-                    <span className="text-[10px] text-sand-300">{r.source}</span>
                   )}
                 </div>
-              </div>
-              <Pencil className="h-3.5 w-3.5 shrink-0 text-sand-300 opacity-0 transition-opacity group-hover:opacity-100" />
+              )}
             </div>
-          ))
+          ))}
+          </div>
         ) : (
           <div className="flex h-40 items-center justify-center text-[13px] text-sand-300">
             {rules && rules.length > 0 ? "Aucune règle ne correspond aux filtres" : "Aucune règle configurée"}
