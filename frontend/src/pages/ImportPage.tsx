@@ -2,7 +2,6 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FileUp, Check, AlertCircle, Sparkles, Upload, FileText } from "lucide-react";
 import { useUploadImport, useApplyRules } from "../lib/hooks";
-import { currentMonth } from "../lib/utils";
 import type { ImportResponse } from "../lib/types";
 
 const ACCOUNT_TYPES = [
@@ -12,7 +11,6 @@ const ACCOUNT_TYPES = [
 ];
 
 export function ImportPage() {
-  const [month, setMonth] = useState(currentMonth());
   const [accountType, setAccountType] = useState("salary");
   const [files, setFiles] = useState<File[]>([]);
   const [result, setResult] = useState<ImportResponse | null>(null);
@@ -36,7 +34,7 @@ export function ImportPage() {
   const handleUpload = () => {
     if (files.length === 0) return;
     const formData = new FormData();
-    formData.append("month", month);
+    formData.append("month", "auto");
     formData.append("account_type", accountType);
     files.forEach((f) => formData.append("files", f));
     upload.mutate(formData, { onSuccess: (data) => setResult(data) });
@@ -53,16 +51,6 @@ export function ImportPage() {
       </p>
 
       <div className="mt-6 space-y-5">
-        {/* Month selector */}
-        <div>
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Mois cible</label>
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="mt-1.5 block w-full max-w-xs rounded-xl border border-sand-200 bg-white px-4 py-2.5 text-[13px] text-sand-700 shadow-sm focus:border-sand-400 focus:outline-none"
-          />
-        </div>
 
         {/* Account type */}
         <div>
