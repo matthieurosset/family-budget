@@ -527,11 +527,51 @@ export function TransactionsPage() {
       </div>
 
       {/* Table */}
+      {/* Rule proposal banner — above table, always visible */}
+      <AnimatePresence>
+        {ruleProposal && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="sticky top-0 z-40 mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-dusk-50 border border-dusk-200 px-4 py-3 shadow-md"
+          >
+            <Tag className="h-3.5 w-3.5 text-dusk-400" />
+            <span className="text-[12px] text-dusk-600">Créer une règle ?</span>
+            <input
+              type="text"
+              value={ruleProposal.pattern}
+              onChange={(e) => setRuleProposal({ ...ruleProposal, pattern: e.target.value })}
+              className="rounded-lg border border-dusk-200 bg-white px-3 py-1 text-[12px] font-mono text-sand-700 focus:border-dusk-400 focus:outline-none"
+            />
+            <span className="text-[11px] text-dusk-400">→</span>
+            <span className="rounded-lg bg-forest-50 px-2 py-0.5 text-[11px] font-semibold text-forest-700">
+              {ruleProposal.categoryName}
+            </span>
+            <button
+              onClick={handleCreateRule}
+              disabled={!ruleProposal.pattern.trim() || createRule.isPending}
+              className="flex items-center gap-1 rounded-lg bg-dusk-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-dusk-700 disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" />
+              Créer
+            </button>
+            <button
+              onClick={() => setRuleProposal(null)}
+              className="rounded-lg px-2 py-1 text-[11px] text-dusk-400 hover:bg-dusk-100 hover:text-dusk-600"
+            >
+              Ignorer
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Table */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
-        className="mt-5 rounded-2xl border border-sand-200/60 bg-white shadow-sm"
+        className="mt-4 rounded-2xl border border-sand-200/60 bg-white shadow-sm"
       >
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
@@ -604,58 +644,13 @@ export function TransactionsPage() {
                       {formatCHF(tx.amount)}
                     </td>
                   </motion.tr>
-                )).flatMap((row, i) => {
-                  const tx = data!.items[i];
-                  const proposal = ruleProposal?.txId === tx.id ? ruleProposal : null;
-                  if (!proposal) return [row];
-                  return [
-                    row,
-                    <tr key={`rule-${tx.id}`}>
-                      <td colSpan={4} className="px-5 py-0">
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-dusk-50 px-4 py-3 my-1">
-                            <Tag className="h-3.5 w-3.5 text-dusk-400" />
-                            <span className="text-[12px] text-dusk-600">Créer une règle ?</span>
-                            <input
-                              type="text"
-                              value={proposal.pattern}
-                              onChange={(e) => setRuleProposal({ ...proposal, pattern: e.target.value })}
-                              className="rounded-lg border border-dusk-200 bg-white px-3 py-1 text-[12px] font-mono text-sand-700 focus:border-dusk-400 focus:outline-none"
-                            />
-                            <span className="text-[11px] text-dusk-400">→</span>
-                            <span className="rounded-lg bg-forest-50 px-2 py-0.5 text-[11px] font-semibold text-forest-700">
-                              {proposal.categoryName}
-                            </span>
-                            <button
-                              onClick={handleCreateRule}
-                              disabled={!proposal.pattern.trim() || createRule.isPending}
-                              className="flex items-center gap-1 rounded-lg bg-dusk-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-dusk-700 disabled:opacity-50"
-                            >
-                              <Plus className="h-3 w-3" />
-                              Créer
-                            </button>
-                            <button
-                              onClick={() => setRuleProposal(null)}
-                              className="rounded-lg px-2 py-1 text-[11px] text-dusk-400 hover:bg-dusk-100 hover:text-dusk-600"
-                            >
-                              Ignorer
-                            </button>
-                          </div>
-                        </motion.div>
-                      </td>
-                    </tr>,
-                  ];
-                })
+                ))
               )}
             </tbody>
           </table>
         </div>
       </motion.div>
+
 
       {/* Pagination */}
       {data && data.total > data.page_size && (
