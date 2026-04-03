@@ -162,6 +162,20 @@ def add_envelope_transaction(env_id: int, data: EnvelopeTransactionCreate, db: S
     return {"id": tx.id, "status": "created"}
 
 
+@router.delete("/{env_id}/transactions/{tx_id}")
+def delete_envelope_transaction(env_id: int, tx_id: int, db: Session = Depends(get_db)):
+    entry = (
+        db.query(AnnualEnvelopeTransaction)
+        .filter(AnnualEnvelopeTransaction.id == tx_id, AnnualEnvelopeTransaction.envelope_id == env_id)
+        .first()
+    )
+    if not entry:
+        raise HTTPException(404, "Entrée non trouvée")
+    db.delete(entry)
+    db.commit()
+    return {"status": "deleted"}
+
+
 # ───── Bills Account Transactions ─────
 
 

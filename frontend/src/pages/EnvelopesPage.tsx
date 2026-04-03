@@ -166,7 +166,169 @@ function EnvelopeForm({
   );
 }
 
-// ───── Page ─────
+// ───── Envelope Detail Modal ─────
+
+function EnvelopeDetail({
+  envelope,
+  onClose,
+  onEdit,
+}: {
+  envelope: Envelope;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const [history, setHistory] = useState<{ id: number; type: string; amount: string; date: string; note: string | null; transaction_id: number | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addType, setAddType] = useState("expense");
+  const [addAmount, setAddAmount] = useState("");
+  const [addDate, setAddDate] = useState(new Date().toISOString().slice(0, 10));
+  const [addNote, setAddNote] = useState("");
+  const qc = useQueryClient();
+
+  const loadHistory = () => {
+    api.get(`/envelopes/${envelope.id}/history`).then((r) => { setHistory(r.data); setLoading(false); });
+  };
+
+  useState(() => { loadHistory(); });
+
+  const handleAdd = async () => {
+    if (!addAmount) return;
+    await api.post(`/envelopes/${envelope.id}/transactions`, {
+      type: addType,
+      amount: parseFloat(addAmount),
+      date: addDate,
+      note: addNote || null,
+    });
+    setShowAdd(false);
+    setAddAmount("");
+    setAddNote("");
+    setLoading(true);
+    loadHistory();
+    qc.invalidateQueries({ queryKey: ["envelopes"] });
+  };
+
+  const handleDelete = async (txId: number) => {
+    await api.delete(`/envelopes/${envelope.id}/transactions/${txId}`);
+    setHistory((prev) => prev.filter((h) => h.id !== txId));
+    qc.invalidateQueries({ queryKey: ["envelopes"] });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-sand-900/30 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 12 }}
+        className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl border border-sand-200 bg-white shadow-xl flex flex-col"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-sand-100 px-6 py-4">
+          <div>
+            <h2 className="text-[15px] font-semibold text-sand-800">{envelope.name}</h2>
+            <p className="text-[11px] text-sand-400">{formatCHF(envelope.monthly_amount)} / mois</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onEdit} className="rounded-lg p-1.5 text-sand-400 hover:bg-sand-100">
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button onClick={onClose} className="rounded-lg p-1.5 text-sand-400 hover:bg-sand-100">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="grid grid-cols-3 gap-3 border-b border-sand-100 px-6 py-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase text-sand-400">Provisions</p>
+            <p className="text-[14px] font-semibold text-forest-600">{formatCHF(envelope.total_provisions)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase text-sand-400">Dépenses</p>
+            <p className="text-[14px] font-semibold text-ember-600">{formatCHF(envelope.total_expenses)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase text-sand-400">Solde</p>
+            <p className={`text-[14px] font-semibold ${parseFloat(envelope.balance) >= 0 ? "text-forest-600" : "text-ember-600"}`}>
+              {formatCHF(envelope.balance)}
+            </p>
+          </div>
+        </div>
+
+        {/* History */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Historique</h3>
+            <button onClick={() => setShowAdd(!showAdd)}
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-forest-600 hover:bg-forest-50">
+              <Plus className="h-3 w-3" /> Ajouter
+            </button>
+          </div>
+
+          {/* Add form */}
+          <AnimatePresence>
+            {showAdd && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="mb-3 overflow-hidden">
+                <div className="rounded-xl border border-sand-200 bg-sand-50 p-3 space-y-2">
+                  <div className="flex gap-2">
+                    <select value={addType} onChange={(e) => setAddType(e.target.value)}
+                      className="rounded-lg border border-sand-200 bg-white px-2.5 py-1.5 text-[11px] text-sand-700">
+                      <option value="expense">Dépense</option>
+                      <option value="provision">Provision</option>
+                    </select>
+                    <input type="number" step="0.01" value={addAmount} onChange={(e) => setAddAmount(e.target.value)}
+                      placeholder="Montant" className="flex-1 rounded-lg border border-sand-200 bg-white px-2.5 py-1.5 text-[11px] tabular-nums text-sand-700" />
+                    <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)}
+                      className="rounded-lg border border-sand-200 bg-white px-2.5 py-1.5 text-[11px] text-sand-700" />
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="text" value={addNote} onChange={(e) => setAddNote(e.target.value)}
+                      placeholder="Note (optionnel)" className="flex-1 rounded-lg border border-sand-200 bg-white px-2.5 py-1.5 text-[11px] text-sand-700" />
+                    <button onClick={handleAdd} disabled={!addAmount}
+                      className="rounded-lg bg-forest-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-forest-700 disabled:opacity-50">
+                      OK
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {loading ? (
+            <div className="flex h-20 items-center justify-center">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-sand-200 border-t-forest-500" />
+            </div>
+          ) : history.length > 0 ? (
+            <div className="space-y-1.5">
+              {history.map((h) => (
+                <div key={h.id} className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-sand-50">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.type === "provision" ? "bg-forest-400" : "bg-ember-400"}`} />
+                  <span className="text-[11px] tabular-nums text-sand-400 w-20 shrink-0">{h.date}</span>
+                  <span className="flex-1 min-w-0 text-[12px] text-sand-600 truncate">{h.note || (h.type === "provision" ? "Provision" : "Dépense")}</span>
+                  <span className={`text-[12px] font-semibold tabular-nums ${h.type === "provision" ? "text-forest-600" : "text-ember-600"}`}>
+                    {h.type === "provision" ? "+" : "-"}{formatCHF(h.amount)}
+                  </span>
+                  <button onClick={() => handleDelete(h.id)}
+                    className="rounded p-1 text-sand-300 opacity-0 transition-opacity hover:bg-ember-50 hover:text-ember-600 group-hover:opacity-100">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-[12px] text-sand-300 py-8">Aucun mouvement</p>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 // ───── Bills Assignment Section ─────
 
@@ -232,6 +394,7 @@ export function EnvelopesPage() {
   const { data: envelopes, isLoading } = useEnvelopes();
   const { data: categories } = useCategories();
   const [editingEnvelope, setEditingEnvelope] = useState<Envelope | null | "new">(null);
+  const [detailEnvelope, setDetailEnvelope] = useState<Envelope | null>(null);
 
   const totalProvisions = envelopes?.reduce((s, e) => s + parseFloat(e.total_provisions), 0) ?? 0;
   const totalExpenses = envelopes?.reduce((s, e) => s + parseFloat(e.total_expenses), 0) ?? 0;
@@ -298,7 +461,7 @@ export function EnvelopesPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
-                onClick={() => setEditingEnvelope(env)}
+                onClick={() => setDetailEnvelope(env)}
                 className="group cursor-pointer rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-sand-300"
               >
                 <div className="flex items-start justify-between">
@@ -357,7 +520,18 @@ export function EnvelopesPage() {
         </motion.div>
       )}
 
-      {/* Modal */}
+      {/* Detail modal */}
+      <AnimatePresence>
+        {detailEnvelope && (
+          <EnvelopeDetail
+            envelope={detailEnvelope}
+            onClose={() => setDetailEnvelope(null)}
+            onEdit={() => { setEditingEnvelope(detailEnvelope); setDetailEnvelope(null); }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Edit modal */}
       <AnimatePresence>
         {editingEnvelope && categories && (
           <EnvelopeForm
