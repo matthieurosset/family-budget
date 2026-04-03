@@ -34,8 +34,23 @@ class TransactionResponse(BaseModel):
 
 
 class TransactionUpdate(BaseModel):
+    date: str | None = None
+    description: str | None = None
+    merchant_name: str | None = None
+    amount: float | None = None
     category_id: int | None = None
     note: str | None = None
+
+
+class TransactionCreate(BaseModel):
+    date: str
+    description: str
+    merchant_name: str | None = None
+    amount: float
+    currency: str = "CHF"
+    category_id: int | None = None
+    note: str | None = None
+    account_id: int | None = None
 
 
 class TransactionListResponse(BaseModel):
@@ -126,14 +141,64 @@ def list_transactions(
 
 @router.patch("/{tx_id}")
 def update_transaction(tx_id: int, data: TransactionUpdate, db: Session = Depends(get_db)):
+    from datetime import date as date_type
+    from decimal import Decimal
+    from fastapi import HTTPException
     tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
     if not tx:
-        from fastapi import HTTPException
         raise HTTPException(404, "Transaction not found")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    if "date" in updates and updates["date"]:
+        tx.date = date_type.fromisoformat(updates.pop("date"))
+        from app.services.import_service import _compute_effective_month
+        tx.effective_month = _compute_effective_month(tx.date)
+    if "amount" in updates and updates["amount"] is not None:
+        tx.amount = Decimal(str(updates.pop("amount")))
+    for field, value in updates.items():
         setattr(tx, field, value)
     db.commit()
     return {"status": "updated", "id": tx_id}
+
+
+@router.post("", status_code=201)
+def create_transaction(data: TransactionCreate, db: Session = Depends(get_db)):
+    from datetime import date as date_type
+    from decimal import Decimal
+    from app.services.import_service import _compute_effective_month
+    from app.models import Account
+
+    tx_date = date_type.fromisoformat(data.date)
+    account_id = data.account_id
+    if not account_id:
+        account = db.query(Account).first()
+        account_id = account.id if account else 1
+
+    tx = Transaction(
+        account_id=account_id,
+        date=tx_date,
+        effective_month=_compute_effective_month(tx_date),
+        description=data.description,
+        merchant_name=data.merchant_name,
+        amount=Decimal(str(data.amount)),
+        currency=data.currency,
+        category_id=data.category_id,
+        note=data.note,
+        transaction_type="manual",
+    )
+    db.add(tx)
+    db.commit()
+    return {"status": "created", "id": tx.id}
+
+
+@router.delete("/{tx_id}")
+def delete_transaction(tx_id: int, db: Session = Depends(get_db)):
+    from fastapi import HTTPException
+    tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(404, "Transaction not found")
+    db.delete(tx)
+    db.commit()
+    return {"status": "deleted"}
 
 
 @router.get("/accounts")

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Search, ChevronLeft, ChevronRight, X, Plus, Tag, Sparkles, Filter } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, X, Plus, Tag, Sparkles, Filter, Trash2, Check } from "lucide-react";
 import { useTransactions, useCategories, useRules, useUpdateTransaction, useCreateRule, useApplyRules } from "../lib/hooks";
+import { useQueryClient } from "@tanstack/react-query";
 import { currentMonth, formatCHF } from "../lib/utils";
-import type { Category, MappingRule } from "../lib/types";
+import { api } from "../lib/api";
+import type { Category, MappingRule, Transaction } from "../lib/types";
 
 function CategoryPicker({
   categories,
@@ -76,6 +78,152 @@ function CategoryPicker({
   );
 }
 
+// ───── Transaction Modal (edit + create) ─────
+
+function TransactionModal({
+  transaction,
+  categories,
+  onClose,
+}: {
+  transaction: Transaction | null; // null = create
+  categories: Category[];
+  onClose: () => void;
+}) {
+  const [date, setDate] = useState(transaction?.date ?? new Date().toISOString().slice(0, 10));
+  const [description, setDescription] = useState(transaction?.description ?? "");
+  const [merchantName, setMerchantName] = useState(transaction?.merchant_name ?? "");
+  const [amount, setAmount] = useState(transaction?.amount ?? "0");
+  const [categoryId, setCategoryId] = useState<string>(transaction?.category_id ? String(transaction.category_id) : "");
+  const [note, setNote] = useState(transaction?.note ?? "");
+  const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
+
+  const flatCats: { id: number; name: string; group: string }[] = [];
+  for (const g of categories) {
+    for (const c of g.children) {
+      flatCats.push({ id: c.id, name: c.name, group: g.name });
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true);
+    if (transaction) {
+      await api.patch(`/transactions/${transaction.id}`, {
+        date,
+        description,
+        merchant_name: merchantName || null,
+        amount: parseFloat(String(amount)),
+        category_id: categoryId ? Number(categoryId) : null,
+        note: note || null,
+      });
+    } else {
+      await api.post("/transactions", {
+        date,
+        description,
+        merchant_name: merchantName || null,
+        amount: parseFloat(String(amount)),
+        category_id: categoryId ? Number(categoryId) : null,
+        note: note || null,
+      });
+    }
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+    setSaving(false);
+    onClose();
+  };
+
+  const handleDelete = async () => {
+    if (!transaction) return;
+    await api.delete(`/transactions/${transaction.id}`);
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+    onClose();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-sand-900/30 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 12 }}
+        className="w-full max-w-lg rounded-2xl border border-sand-200 bg-white p-6 shadow-xl"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-sand-800">
+            {transaction ? "Modifier la transaction" : "Nouvelle transaction"}
+          </h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-sand-400 hover:bg-sand-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Date</label>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 focus:border-sand-400 focus:bg-white focus:outline-none" />
+            </div>
+            <div className="flex-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Montant (CHF)</label>
+              <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] tabular-nums text-sand-700 focus:border-sand-400 focus:bg-white focus:outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Description</label>
+            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 focus:border-sand-400 focus:bg-white focus:outline-none" />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Marchand</label>
+            <input type="text" value={merchantName} onChange={(e) => setMerchantName(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 focus:border-sand-400 focus:bg-white focus:outline-none" />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Catégorie</label>
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 focus:border-sand-400 focus:bg-white focus:outline-none">
+              <option value="">Aucune</option>
+              {flatCats.map((c) => <option key={c.id} value={c.id}>{c.group} › {c.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Note</label>
+            <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optionnel"
+              className="mt-1 w-full rounded-xl border border-sand-200 bg-sand-50 px-4 py-2.5 text-[13px] text-sand-700 placeholder:text-sand-300 focus:border-sand-400 focus:bg-white focus:outline-none" />
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-between">
+          {transaction ? (
+            <button onClick={handleDelete}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium text-ember-600 transition-colors hover:bg-ember-50">
+              <Trash2 className="h-3.5 w-3.5" /> Supprimer
+            </button>
+          ) : <div />}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="rounded-lg px-4 py-2 text-[12px] font-medium text-sand-500 hover:bg-sand-50">
+              Annuler
+            </button>
+            <button onClick={handleSave} disabled={!description.trim() || saving}
+              className="flex items-center gap-1.5 rounded-lg bg-forest-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-forest-700 disabled:opacity-50">
+              <Check className="h-3.5 w-3.5" />
+              {saving ? "..." : transaction ? "Enregistrer" : "Créer"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export function TransactionsPage() {
   const [searchParams] = useSearchParams();
   const [month, setMonth] = useState(searchParams.get("month") || currentMonth());
@@ -83,6 +231,7 @@ export function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get("category") || "");
   const [editingTx, setEditingTx] = useState<number | null>(null);
+  const [modalTx, setModalTx] = useState<Transaction | null | "new">(null);
   const [ruleProposal, setRuleProposal] = useState<{
     txId: number;
     pattern: string;
@@ -165,6 +314,13 @@ export function TransactionsPage() {
             </p>
           )}
           <button
+            onClick={() => setModalTx("new")}
+            className="flex items-center gap-1.5 rounded-lg border border-sand-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-sand-600 transition-colors hover:bg-sand-50"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Transaction
+          </button>
+          <button
             onClick={() => applyRules.mutate()}
             disabled={applyRules.isPending}
             className="flex items-center gap-1.5 rounded-lg bg-forest-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-forest-700 disabled:opacity-50"
@@ -246,8 +402,8 @@ export function TransactionsPage() {
                     transition={{ delay: i * 0.01 }}
                     className="group border-b border-sand-100/60 transition-colors hover:bg-sand-50/50"
                   >
-                    <td className="whitespace-nowrap px-5 py-3 text-sand-400 tabular-nums">{tx.date}</td>
-                    <td className="px-5 py-3">
+                    <td className="whitespace-nowrap px-5 py-3 text-sand-400 tabular-nums cursor-pointer hover:text-sand-600" onClick={() => setModalTx(tx)}>{tx.date}</td>
+                    <td className="px-5 py-3 cursor-pointer" onClick={() => setModalTx(tx)}>
                       <div className="font-medium text-sand-800">
                         {tx.merchant_name || tx.description.slice(0, 45)}
                       </div>
@@ -366,6 +522,17 @@ export function TransactionsPage() {
           </div>
         </div>
       )}
+
+      {/* Transaction modal */}
+      <AnimatePresence>
+        {modalTx && categories && (
+          <TransactionModal
+            transaction={modalTx === "new" ? null : modalTx}
+            categories={categories}
+            onClose={() => setModalTx(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
