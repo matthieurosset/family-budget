@@ -418,16 +418,16 @@ export function TransactionsPage() {
   };
 
   const handleCategorySelect = (txId: number, categoryId: number | null) => {
+    // Capture transaction info BEFORE mutation (it may disappear from filtered list after refetch)
+    const tx = data?.items.find((t) => t.id === txId);
+
     updateTx.mutate({ id: txId, category_id: categoryId });
     setEditingTx(null);
 
-    if (!categoryId || !rules) {
+    if (!categoryId || !rules || !tx) {
       setRuleProposal(null);
       return;
     }
-
-    const tx = data?.items.find((t) => t.id === txId);
-    if (!tx) return;
 
     if (!hasMatchingRule(tx.merchant_name, tx.description, rules)) {
       const pattern = tx.merchant_name || tx.description.split(" ").slice(0, 3).join(" ");
