@@ -36,7 +36,7 @@ function CategoryPicker({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15 }}
-      className="absolute left-0 top-full z-20 mt-1 w-64 rounded-xl border border-sand-200 bg-white shadow-lg"
+      className="absolute left-0 top-full z-50 mt-1 w-64 rounded-xl border border-sand-200 bg-white shadow-xl"
     >
       <div className="border-b border-sand-100 p-2">
         <input
@@ -374,7 +374,7 @@ function SplitModal({
 
 export function TransactionsPage() {
   const [searchParams] = useSearchParams();
-  const [month, setMonth] = useState(searchParams.get("month") || currentMonth());
+  const [month, setMonth] = useState(searchParams.get("month") || "");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get("category") || "");
@@ -388,7 +388,8 @@ export function TransactionsPage() {
     categoryName: string;
   } | null>(null);
 
-  const params: Record<string, string | number | boolean> = { month, search, page, page_size: 50 };
+  const params: Record<string, string | number | boolean> = { search, page, page_size: 50 };
+  if (month) params.month = month;
   if (categoryFilter === "uncategorized") {
     params.uncategorized = true;
   } else if (categoryFilter) {
@@ -482,12 +483,21 @@ export function TransactionsPage() {
 
       {/* Filters */}
       <div className="mt-5 flex flex-wrap gap-3">
-        <input
-          type="month"
+        <select
           value={month}
           onChange={(e) => { setMonth(e.target.value); setPage(1); }}
           className="rounded-xl border border-sand-200 bg-white px-3.5 py-2 text-[13px] text-sand-700 shadow-sm transition-colors focus:border-sand-400 focus:outline-none"
-        />
+        >
+          <option value="">Tous les mois</option>
+          {/* Generate last 12 months */}
+          {Array.from({ length: 12 }, (_, i) => {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            const label = d.toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
+            return <option key={val} value={val}>{label}</option>;
+          })}
+        </select>
         <div className="relative">
           <Filter className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-sand-300 pointer-events-none" />
           <select
@@ -521,7 +531,7 @@ export function TransactionsPage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
-        className="mt-5 overflow-hidden rounded-2xl border border-sand-200/60 bg-white shadow-sm"
+        className="mt-5 rounded-2xl border border-sand-200/60 bg-white shadow-sm"
       >
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
