@@ -131,7 +131,7 @@ function ReconciliationPicker({
   const [detailData, setDetailData] = useState<{ paymentLineId: number; paymentAmount: number; ccLines: CcLine[] } | null>(null);
   const [linking, setLinking] = useState(false);
 
-  const handleSelect = async (txId: number, txAmount: string) => {
+  const handleSelect = async (txId: number, _txAmount: string) => {
     setLinking(true);
     const formData = new FormData();
     formData.append("payment_line_id", String(txId));
