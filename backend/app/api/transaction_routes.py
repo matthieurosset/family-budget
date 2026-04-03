@@ -92,7 +92,7 @@ def list_transactions(
 
     # Exclude reconciled CC payment lines from normal view
     query = query.filter(
-        Transaction.transaction_type.not_in(["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account"]),
+        Transaction.transaction_type.not_in(["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account", "split_parent"]),
     )
 
     total = query.count()
@@ -199,6 +199,85 @@ def delete_transaction(tx_id: int, db: Session = Depends(get_db)):
     db.delete(tx)
     db.commit()
     return {"status": "deleted"}
+
+
+class SplitLine(BaseModel):
+    category_id: int
+    amount: float
+    note: str | None = None
+
+
+@router.post("/{tx_id}/split")
+def split_transaction(tx_id: int, lines: list[SplitLine], db: Session = Depends(get_db)):
+    """Split a transaction into multiple sub-transactions with different categories."""
+    from decimal import Decimal
+    from fastapi import HTTPException
+    from app.services.import_service import _compute_effective_month
+
+    tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(404, "Transaction not found")
+
+    # Validate total
+    total = sum(Decimal(str(l.amount)) for l in lines)
+    if abs(total - abs(tx.amount)) > Decimal("0.02"):
+        raise HTTPException(400, f"Le total des lignes ({total}) ne correspond pas au montant ({abs(tx.amount)})")
+
+    # Create children
+    for line in lines:
+        child = Transaction(
+            account_id=tx.account_id,
+            date=tx.date,
+            value_date=tx.value_date,
+            effective_month=tx.effective_month,
+            description=tx.description,
+            merchant_name=tx.merchant_name,
+            amount=-Decimal(str(line.amount)) if tx.amount < 0 else Decimal(str(line.amount)),
+            currency=tx.currency,
+            category_id=line.category_id,
+            parent_transaction_id=tx.id,
+            note=line.note,
+            transaction_type="split_child",
+            import_batch_id=tx.import_batch_id,
+        )
+        db.add(child)
+
+    # Mark parent
+    tx.transaction_type = "split_parent"
+    db.commit()
+    return {"status": "split", "children": len(lines)}
+
+
+@router.delete("/{tx_id}/unsplit")
+def unsplit_transaction(tx_id: int, db: Session = Depends(get_db)):
+    """Remove all split children and restore the parent transaction."""
+    from fastapi import HTTPException
+
+    tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(404, "Transaction not found")
+
+    children = db.query(Transaction).filter(Transaction.parent_transaction_id == tx_id, Transaction.transaction_type == "split_child").all()
+    for child in children:
+        db.delete(child)
+
+    tx.transaction_type = None
+    tx.category_id = None
+    db.commit()
+    return {"status": "unsplit", "children_removed": len(children)}
+
+
+@router.get("/{tx_id}/children")
+def get_split_children(tx_id: int, db: Session = Depends(get_db)):
+    """Get split children of a transaction."""
+    children = db.query(Transaction).filter(
+        Transaction.parent_transaction_id == tx_id,
+        Transaction.transaction_type == "split_child",
+    ).all()
+    return [
+        {"id": c.id, "category_id": c.category_id, "amount": str(abs(c.amount)), "note": c.note}
+        for c in children
+    ]
 
 
 @router.get("/accounts")

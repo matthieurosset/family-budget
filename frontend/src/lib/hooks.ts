@@ -152,6 +152,31 @@ export function useDeleteRule() {
   });
 }
 
+// Split rules
+export function useSplitRules() {
+  return useQuery<import("./types").SplitRule[]>({
+    queryKey: ["split-rules"],
+    queryFn: () => api.get("/split-rules").then((r) => r.data),
+  });
+}
+
+export function useCreateSplitRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { pattern: string; min_amount?: number | null; max_amount?: number | null; splits: { category_id: number; amount: number; note?: string | null }[] }) =>
+      api.post("/split-rules", data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["split-rules"] }),
+  });
+}
+
+export function useDeleteSplitRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/split-rules/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["split-rules"] }),
+  });
+}
+
 export function useUpdateTransaction() {
   const qc = useQueryClient();
   return useMutation({

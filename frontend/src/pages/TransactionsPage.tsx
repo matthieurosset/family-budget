@@ -84,10 +84,12 @@ function TransactionModal({
   transaction,
   categories,
   onClose,
+  onSplit,
 }: {
   transaction: Transaction | null; // null = create
   categories: Category[];
   onClose: () => void;
+  onSplit?: (tx: Transaction) => void;
 }) {
   const [date, setDate] = useState(transaction?.date ?? new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState(transaction?.description ?? "");
@@ -203,10 +205,18 @@ function TransactionModal({
 
         <div className="mt-6 flex items-center justify-between">
           {transaction ? (
-            <button onClick={handleDelete}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium text-ember-600 transition-colors hover:bg-ember-50">
-              <Trash2 className="h-3.5 w-3.5" /> Supprimer
-            </button>
+            <div className="flex gap-2">
+              {onSplit && (
+                <button onClick={() => { onSplit(transaction); onClose(); }}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium text-dusk-600 transition-colors hover:bg-dusk-50">
+                  Splitter
+                </button>
+              )}
+              <button onClick={handleDelete}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium text-ember-600 transition-colors hover:bg-ember-50">
+                <Trash2 className="h-3.5 w-3.5" /> Supprimer
+              </button>
+            </div>
           ) : <div />}
           <div className="flex gap-2">
             <button onClick={onClose} className="rounded-lg px-4 py-2 text-[12px] font-medium text-sand-500 hover:bg-sand-50">
@@ -224,6 +234,144 @@ function TransactionModal({
   );
 }
 
+// ───── Split Modal ─────
+
+function SplitModal({
+  transaction,
+  categories,
+  onClose,
+}: {
+  transaction: Transaction;
+  categories: Category[];
+  onClose: () => void;
+}) {
+  const parentAmount = Math.abs(parseFloat(transaction.amount));
+  const [lines, setLines] = useState([
+    { category_id: "", amount: "", note: "" },
+    { category_id: "", amount: "", note: "" },
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [saveAsRule, setSaveAsRule] = useState(false);
+  const qc = useQueryClient();
+
+  const flatCats: { id: number; name: string; group: string }[] = [];
+  for (const g of categories) {
+    for (const c of g.children) {
+      flatCats.push({ id: c.id, name: c.name, group: g.name });
+    }
+  }
+
+  const total = lines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+  const diff = total - parentAmount;
+  const isBalanced = Math.abs(diff) <= 0.02;
+  const allValid = lines.every((l) => l.category_id && parseFloat(l.amount) > 0);
+
+  const addLine = () => setLines([...lines, { category_id: "", amount: "", note: "" }]);
+  const removeLine = (i: number) => setLines(lines.filter((_, j) => j !== i));
+  const updateLine = (i: number, field: string, value: string) =>
+    setLines(lines.map((l, j) => j === i ? { ...l, [field]: value } : l));
+
+  const handleSplit = async () => {
+    if (!isBalanced || !allValid) return;
+    setSaving(true);
+    const splitLines = lines.map((l) => ({
+      category_id: Number(l.category_id),
+      amount: parseFloat(l.amount),
+      note: l.note || null,
+    }));
+    await api.post(`/transactions/${transaction.id}/split`, splitLines);
+
+    if (saveAsRule) {
+      await api.post("/split-rules", {
+        pattern: transaction.merchant_name || transaction.description.split(" ").slice(0, 3).join(" "),
+        min_amount: parentAmount - 1,
+        max_amount: parentAmount + 1,
+        splits: splitLines,
+      });
+    }
+
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-sand-900/30 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="w-full max-w-lg rounded-2xl border border-sand-200 bg-white p-6 shadow-xl"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-sand-800">Splitter la transaction</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-sand-400 hover:bg-sand-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-3 rounded-xl bg-sand-50 px-4 py-3">
+          <p className="text-[12px] text-sand-500">{transaction.merchant_name || transaction.description.slice(0, 40)}</p>
+          <p className="text-[16px] font-semibold text-sand-800">{formatCHF(parentAmount)}</p>
+        </div>
+
+        {/* Lines */}
+        <div className="mt-4 space-y-2">
+          {lines.map((line, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <select value={line.category_id} onChange={(e) => updateLine(i, "category_id", e.target.value)}
+                className="flex-1 rounded-lg border border-sand-200 bg-sand-50 px-2.5 py-2 text-[12px] text-sand-700 focus:border-sand-400 focus:outline-none">
+                <option value="">Catégorie...</option>
+                {flatCats.map((c) => <option key={c.id} value={c.id}>{c.group} › {c.name}</option>)}
+              </select>
+              <input type="number" step="0.01" value={line.amount} onChange={(e) => updateLine(i, "amount", e.target.value)}
+                placeholder="Montant" className="w-24 rounded-lg border border-sand-200 bg-sand-50 px-2.5 py-2 text-right text-[12px] tabular-nums text-sand-700 focus:border-sand-400 focus:outline-none" />
+              <input type="text" value={line.note} onChange={(e) => updateLine(i, "note", e.target.value)}
+                placeholder="Note" className="w-28 rounded-lg border border-sand-200 bg-sand-50 px-2.5 py-2 text-[12px] text-sand-700 focus:border-sand-400 focus:outline-none" />
+              {lines.length > 2 && (
+                <button onClick={() => removeLine(i)} className="rounded p-1 text-sand-300 hover:text-ember-500">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <button onClick={addLine} className="mt-2 flex items-center gap-1 text-[11px] font-medium text-forest-600 hover:text-forest-700">
+          <Plus className="h-3 w-3" /> Ajouter une ligne
+        </button>
+
+        {/* Summary */}
+        <div className="mt-4 flex items-center justify-between rounded-xl bg-sand-50 px-4 py-2.5">
+          <span className="text-[12px] text-sand-500">Total : <span className={`font-semibold ${isBalanced ? "text-forest-600" : "text-ember-600"}`}>{formatCHF(total)}</span></span>
+          <span className={`text-[12px] font-semibold ${isBalanced ? "text-forest-600" : "text-ember-600"}`}>
+            {isBalanced ? "Équilibré" : `Diff: ${diff > 0 ? "+" : ""}${formatCHF(diff)}`}
+          </span>
+        </div>
+
+        {/* Save as rule */}
+        <label className="mt-3 flex items-center gap-2 text-[12px] text-sand-600">
+          <input type="checkbox" checked={saveAsRule} onChange={(e) => setSaveAsRule(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-sand-300 accent-forest-600" />
+          Sauvegarder comme règle de split automatique
+        </label>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-[12px] font-medium text-sand-500 hover:bg-sand-50">Annuler</button>
+          <button onClick={handleSplit} disabled={!isBalanced || !allValid || saving}
+            className="flex items-center gap-1.5 rounded-lg bg-forest-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-forest-700 disabled:opacity-50">
+            <Check className="h-3.5 w-3.5" />
+            {saving ? "..." : "Splitter"}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export function TransactionsPage() {
   const [searchParams] = useSearchParams();
   const [month, setMonth] = useState(searchParams.get("month") || currentMonth());
@@ -232,6 +380,7 @@ export function TransactionsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get("category") || "");
   const [editingTx, setEditingTx] = useState<number | null>(null);
   const [modalTx, setModalTx] = useState<Transaction | null | "new">(null);
+  const [splitTx, setSplitTx] = useState<Transaction | null>(null);
   const [ruleProposal, setRuleProposal] = useState<{
     txId: number;
     pattern: string;
@@ -530,6 +679,18 @@ export function TransactionsPage() {
             transaction={modalTx === "new" ? null : modalTx}
             categories={categories}
             onClose={() => setModalTx(null)}
+            onSplit={(tx) => { setModalTx(null); setSplitTx(tx); }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Split modal */}
+      <AnimatePresence>
+        {splitTx && categories && (
+          <SplitModal
+            transaction={splitTx}
+            categories={categories}
+            onClose={() => setSplitTx(null)}
           />
         )}
       </AnimatePresence>

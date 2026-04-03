@@ -31,6 +31,66 @@ def _get_or_create_transfer_category(db: Session) -> int:
     return cat.id
 
 
+def _apply_split_rules(db: Session) -> int:
+    """Apply split rules to uncategorized transactions."""
+    import json as json_mod
+    from app.models import SplitRule
+    from app.services.import_service import _compute_effective_month
+
+    split_rules = db.query(SplitRule).all()
+    if not split_rules:
+        return 0
+
+    uncategorized = db.query(Transaction).filter(
+        Transaction.category_id.is_(None),
+        Transaction.transaction_type.is_(None) | (Transaction.transaction_type.not_in(["split_parent", "split_child"])),
+    ).all()
+
+    splits_done = 0
+    for tx in uncategorized:
+        search_text = _normalize((tx.description or "") + " " + (tx.merchant_name or ""))
+        tx_abs = abs(tx.amount)
+
+        for rule in split_rules:
+            if _normalize(rule.pattern) not in search_text:
+                continue
+            if rule.min_amount is not None and tx_abs < rule.min_amount:
+                continue
+            if rule.max_amount is not None and tx_abs > rule.max_amount:
+                continue
+
+            # Match — apply split
+            split_lines = json_mod.loads(rule.splits)
+            rule_total = sum(Decimal(str(s["amount"])) for s in split_lines)
+            if abs(rule_total - tx_abs) > Decimal("0.02"):
+                continue  # amounts don't match, skip
+
+            for s in split_lines:
+                child = Transaction(
+                    account_id=tx.account_id,
+                    date=tx.date,
+                    value_date=tx.value_date,
+                    effective_month=tx.effective_month,
+                    description=tx.description,
+                    merchant_name=tx.merchant_name,
+                    amount=-Decimal(str(s["amount"])) if tx.amount < 0 else Decimal(str(s["amount"])),
+                    currency=tx.currency,
+                    category_id=s["category_id"],
+                    parent_transaction_id=tx.id,
+                    note=s.get("note"),
+                    transaction_type="split_child",
+                    import_batch_id=tx.import_batch_id,
+                )
+                db.add(child)
+
+            tx.transaction_type = "split_parent"
+            splits_done += 1
+            break
+
+    db.commit()
+    return splits_done
+
+
 def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
     """Apply mapping rules to uncategorized transactions.
 
@@ -97,12 +157,16 @@ def apply_rules(db: Session, transaction_ids: list[int] | None = None) -> dict:
     from app.services.envelope_service import auto_split_envelope_transfers
     split_result = auto_split_envelope_transfers(db)
 
+    # Auto-split rules
+    auto_splits = _apply_split_rules(db)
+
     return {
         "status": "success",
         "categorized": categorized_count + transfers_categorized,
         "transfers": transfers_categorized,
         "rules_matched": categorized_count,
         "envelope_splits": split_result.get("splits", 0),
+        "auto_splits": auto_splits,
         "total_uncategorized": len(uncategorized) + transfers_categorized,
         "remaining": len(uncategorized) - categorized_count,
     }

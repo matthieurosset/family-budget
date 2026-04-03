@@ -5,6 +5,7 @@ from app.models.base import (
     Category,
     ImportBatch,
     MappingRule,
+    SplitRule,
     Transaction,
     VisecaCategoryMapping,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "Category",
     "ImportBatch",
     "MappingRule",
+    "SplitRule",
     "Transaction",
     "VisecaCategoryMapping",
 ]

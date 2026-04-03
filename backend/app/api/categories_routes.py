@@ -265,6 +265,70 @@ async def import_categorized(file: UploadFile = File(...), db: Session = Depends
     return import_categorized_excel(db, content)
 
 
+# ───── Split Rules ─────
+
+
+class SplitRuleLine(BaseModel):
+    category_id: int
+    amount: float
+    note: str | None = None
+
+
+class SplitRuleCreate(BaseModel):
+    pattern: str
+    min_amount: float | None = None
+    max_amount: float | None = None
+    splits: list[SplitRuleLine]
+
+
+@router.get("/api/split-rules")
+def list_split_rules(db: Session = Depends(get_db)):
+    import json
+    from app.models import SplitRule
+    rules = db.query(SplitRule).order_by(SplitRule.pattern).all()
+    result = []
+    for r in rules:
+        splits = json.loads(r.splits)
+        # Enrich with category names
+        for s in splits:
+            cat = db.query(Category).filter(Category.id == s["category_id"]).first()
+            s["category_name"] = cat.name if cat else "?"
+        result.append({
+            "id": r.id,
+            "pattern": r.pattern,
+            "min_amount": str(r.min_amount) if r.min_amount else None,
+            "max_amount": str(r.max_amount) if r.max_amount else None,
+            "splits": splits,
+        })
+    return result
+
+
+@router.post("/api/split-rules")
+def create_split_rule(data: SplitRuleCreate, db: Session = Depends(get_db)):
+    import json
+    from app.models import SplitRule
+    rule = SplitRule(
+        pattern=data.pattern,
+        min_amount=data.min_amount,
+        max_amount=data.max_amount,
+        splits=json.dumps([s.model_dump() for s in data.splits]),
+    )
+    db.add(rule)
+    db.commit()
+    return {"status": "created", "id": rule.id}
+
+
+@router.delete("/api/split-rules/{rule_id}")
+def delete_split_rule(rule_id: int, db: Session = Depends(get_db)):
+    from app.models import SplitRule
+    rule = db.query(SplitRule).filter(SplitRule.id == rule_id).first()
+    if not rule:
+        raise HTTPException(404, "Split rule not found")
+    db.delete(rule)
+    db.commit()
+    return {"status": "deleted"}
+
+
 # ───── Migration ─────
 
 

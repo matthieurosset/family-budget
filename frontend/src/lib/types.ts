@@ -84,6 +84,14 @@ export interface Envelope {
   balance: string;
 }
 
+export interface SplitRule {
+  id: number;
+  pattern: string;
+  min_amount: string | null;
+  max_amount: string | null;
+  splits: { category_id: number; amount: number; note: string | null; category_name: string }[];
+}
+
 export interface ImportResponse {
   batch_id: number;
   month: string;

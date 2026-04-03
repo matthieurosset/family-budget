@@ -111,6 +111,16 @@ class MappingRule(Base):
     category: Mapped["Category"] = relationship(back_populates="mapping_rules")
 
 
+class SplitRule(Base):
+    __tablename__ = "split_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pattern: Mapped[str] = mapped_column(String(200), nullable=False)
+    min_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    max_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    splits: Mapped[str] = mapped_column(Text, nullable=False)  # JSON: [{category_id, amount, note}]
+
+
 class AnnualEnvelope(Base):
     __tablename__ = "annual_envelopes"
 
