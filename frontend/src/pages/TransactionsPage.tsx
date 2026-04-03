@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Search, ChevronLeft, ChevronRight, X, Plus, Tag, Sparkles, Filter, Trash2, Check } from "lucide-react";
 import { useTransactions, useCategories, useRules, useUpdateTransaction, useCreateRule, useApplyRules } from "../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import { currentMonth, formatCHF } from "../lib/utils";
+import { formatCHF } from "../lib/utils";
 import { api } from "../lib/api";
 import type { Category, MappingRule, Transaction } from "../lib/types";
 
