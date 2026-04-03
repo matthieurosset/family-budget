@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models import Transaction
 
 VISECA_KEYWORDS = ["viseca", "carte de crédit", "cumulus", "migros bank"]
-HIDDEN_TYPES = ("credit_card", "cc_payment_reconciled", "envelope_transfer_split", "envelope_provision", "bills_account")
+HIDDEN_TYPES = ("credit_card", "cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "envelope_provision", "bills_account")
 
 
 def find_viseca_payment_line(db: Session, cc_total: Decimal) -> Transaction | None:

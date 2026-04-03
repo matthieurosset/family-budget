@@ -3,7 +3,9 @@
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from decimal import Decimal
+
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -140,15 +142,84 @@ def manual_reconciliation(
         .all()
     )
 
+    cc_total = sum(abs(t.amount) for t in cc_txns if t.amount < 0) - sum(t.amount for t in cc_txns if t.amount > 0)
+    payment_amount = abs(payment_line.amount)
+
+    # If amounts match → auto-reconcile all
+    if abs(cc_total - payment_amount) <= 1:
+        payment_line.transaction_type = "cc_payment_reconciled"
+        payment_line.note = f"Réconcilié avec {len(cc_txns)} transactions CC"
+        for tx in cc_txns:
+            tx.parent_transaction_id = payment_line.id
+        db.commit()
+        return {
+            "status": "reconciled",
+            "cc_transactions": len(cc_txns),
+            "payment_line_id": payment_line.id,
+        }
+
+    # Amounts differ → return CC lines for detailed reconciliation
+    cc_list = [
+        {"id": t.id, "date": t.date.isoformat(), "description": t.description[:60], "merchant_name": t.merchant_name, "amount": str(t.amount)}
+        for t in cc_txns
+    ]
+    return {
+        "status": "need_detail",
+        "payment_line_id": payment_line.id,
+        "payment_amount": str(payment_amount),
+        "cc_total": str(cc_total),
+        "cc_lines": cc_list,
+    }
+
+
+class ReconcileIncluded(BaseModel):
+    id: int
+    amount: float
+
+
+class ReconcileDetailRequest(BaseModel):
+    payment_line_id: int
+    included: list[ReconcileIncluded]
+    excluded: list[int]
+
+
+@router.post("/batches/{batch_id}/reconcile-detail")
+def detail_reconciliation(
+    batch_id: int,
+    data: ReconcileDetailRequest,
+    db: Session = Depends(get_db),
+):
+    """Reconcile CC transactions with line-by-line selection and amount edits."""
+    payment_line = db.query(Transaction).filter(Transaction.id == data.payment_line_id).first()
+    if not payment_line:
+        raise HTTPException(404, "Ligne bancaire non trouvée")
+
+    included_ids = {item.id for item in data.included}
+    amount_overrides = {item.id: Decimal(str(item.amount)) for item in data.included}
+
+    # Mark payment line as reconciled
     payment_line.transaction_type = "cc_payment_reconciled"
-    payment_line.note = f"Réconcilié manuellement avec {len(cc_txns)} transactions CC"
-    for tx in cc_txns:
-        tx.parent_transaction_id = payment_line.id
+    payment_line.note = f"Réconcilié avec {len(data.included)} transactions CC sur {len(data.included) + len(data.excluded)}"
+
+    # Process included transactions
+    for tx_id in included_ids:
+        tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+        if tx:
+            tx.parent_transaction_id = payment_line.id
+            new_amount = amount_overrides.get(tx_id)
+            if new_amount is not None and new_amount != abs(tx.amount):
+                tx.amount = -abs(new_amount) if tx.amount < 0 else abs(new_amount)
+
+    # Process excluded transactions (pending for next statement)
+    for tx_id in data.excluded:
+        tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+        if tx:
+            tx.transaction_type = "credit_card_pending"
 
     db.commit()
     return {
         "status": "reconciled",
-        "message": f"Ligne de {abs(payment_line.amount)} CHF liée à {len(cc_txns)} transactions CC",
-        "cc_transactions": len(cc_txns),
+        "included": len(data.included),
+        "excluded": len(data.excluded),
         "payment_line_id": payment_line.id,
     }

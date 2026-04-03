@@ -43,7 +43,7 @@ def monthly_summary(month: str = Query(..., description="YYYY-MM"), db: Session 
     """Get monthly summary: totals for expenses, income, transfers."""
     txns = db.query(Transaction).filter(Transaction.effective_month == month).all()
 
-    expenses = sum(t.amount for t in txns if t.amount < 0 and not t.is_transfer and t.transaction_type not in ("cc_payment_reconciled", "envelope_transfer_split", "bills_account"))
+    expenses = sum(t.amount for t in txns if t.amount < 0 and not t.is_transfer and t.transaction_type not in ("cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account"))
     income = sum(t.amount for t in txns if t.amount > 0 and not t.is_transfer)
     transfers = sum(abs(t.amount) for t in txns if t.is_transfer)
 
@@ -86,7 +86,7 @@ def category_breakdown(
             Transaction.effective_month <= to_month,
             Transaction.amount < 0,
             Transaction.is_transfer == False,
-            Transaction.transaction_type.not_in(["cc_payment_reconciled", "envelope_transfer_split", "bills_account"]),
+            Transaction.transaction_type.not_in(["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account"]),
         )
         .all()
     )
@@ -137,7 +137,7 @@ def period_comparison(
                 Transaction.effective_month <= to_m,
                 Transaction.amount < 0,
                 Transaction.is_transfer == False,
-                Transaction.transaction_type.not_in(["cc_payment_reconciled", "envelope_transfer_split", "bills_account"]),
+                Transaction.transaction_type.not_in(["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account"]),
             )
             .all()
         )
@@ -196,7 +196,7 @@ def detect_anomalies(
             Transaction.amount < 0,
             Transaction.is_transfer == False,
             Transaction.category_id.is_not(None),
-            Transaction.transaction_type.not_in(["cc_payment_reconciled", "envelope_transfer_split", "bills_account"]),
+            Transaction.transaction_type.not_in(["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account"]),
         )
         .all()
     )
@@ -212,7 +212,7 @@ def detect_anomalies(
             Transaction.amount < 0,
             Transaction.is_transfer == False,
             Transaction.category_id.is_not(None),
-            Transaction.transaction_type.not_in(["cc_payment_reconciled", "envelope_transfer_split", "bills_account"]),
+            Transaction.transaction_type.not_in(["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account"]),
         )
         .all()
     )

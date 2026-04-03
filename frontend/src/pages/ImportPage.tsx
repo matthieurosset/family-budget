@@ -6,6 +6,117 @@ import { api } from "../lib/api";
 import { formatCHF } from "../lib/utils";
 import type { ImportResponse } from "../lib/types";
 
+type CcLine = { id: number; date: string; description: string; merchant_name: string; amount: string };
+
+// ───── Reconciliation Detail (line-by-line) ─────
+
+function ReconciliationDetail({
+  batchId,
+  paymentLineId,
+  paymentAmount,
+  ccLines,
+  onReconciled,
+}: {
+  batchId: number;
+  paymentLineId: number;
+  paymentAmount: number;
+  ccLines: CcLine[];
+  onReconciled: () => void;
+}) {
+  const [lines, setLines] = useState(
+    ccLines.map((l) => ({ ...l, checked: true, editedAmount: Math.abs(parseFloat(l.amount)) }))
+  );
+  const [saving, setSaving] = useState(false);
+
+  const checkedTotal = lines.filter((l) => l.checked).reduce((s, l) => s + l.editedAmount, 0);
+  const diff = checkedTotal - paymentAmount;
+  const isBalanced = Math.abs(diff) <= 1;
+
+  const toggleAll = (checked: boolean) => setLines((prev) => prev.map((l) => ({ ...l, checked })));
+
+  const handleValidate = async () => {
+    setSaving(true);
+    const included = lines.filter((l) => l.checked).map((l) => ({ id: l.id, amount: l.editedAmount }));
+    const excluded = lines.filter((l) => !l.checked).map((l) => l.id);
+    await api.post(`/import/batches/${batchId}/reconcile-detail`, { payment_line_id: paymentLineId, included, excluded });
+    setSaving(false);
+    onReconciled();
+  };
+
+  return (
+    <div className="rounded-2xl border border-dusk-200 bg-white p-5 shadow-sm">
+      <h3 className="text-[13px] font-semibold text-sand-800">
+        <LinkIcon className="mr-1.5 inline h-4 w-4 text-dusk-500" />
+        Rapprochement ligne par ligne
+      </h3>
+
+      {/* Summary bar */}
+      <div className="mt-3 flex flex-wrap items-center gap-4 rounded-xl bg-sand-50 px-4 py-3">
+        <div>
+          <p className="text-[10px] uppercase text-sand-400">Paiement</p>
+          <p className="text-[14px] font-semibold text-sand-800">{formatCHF(paymentAmount)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase text-sand-400">Sélectionné</p>
+          <p className={`text-[14px] font-semibold ${isBalanced ? "text-forest-600" : "text-ember-600"}`}>{formatCHF(checkedTotal)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase text-sand-400">Différence</p>
+          <p className={`text-[14px] font-semibold ${isBalanced ? "text-forest-600" : "text-ember-600"}`}>
+            {diff > 0 ? "+" : ""}{formatCHF(diff)}
+          </p>
+        </div>
+        <div className="flex-1" />
+        <div className="flex gap-2 text-[11px]">
+          <button onClick={() => toggleAll(true)} className="rounded-lg px-2 py-1 text-sand-500 hover:bg-sand-100">Tout cocher</button>
+          <button onClick={() => toggleAll(false)} className="rounded-lg px-2 py-1 text-sand-500 hover:bg-sand-100">Tout décocher</button>
+        </div>
+      </div>
+
+      {/* Lines */}
+      <div className="mt-3 max-h-80 overflow-y-auto space-y-1">
+        {lines.map((line, i) => (
+          <div key={line.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${line.checked ? "bg-white" : "bg-sand-50 opacity-60"}`}>
+            <input
+              type="checkbox"
+              checked={line.checked}
+              onChange={(e) => setLines((prev) => prev.map((l, j) => j === i ? { ...l, checked: e.target.checked } : l))}
+              className="h-4 w-4 rounded border-sand-300 text-forest-600 accent-forest-600"
+            />
+            <span className="text-[11px] tabular-nums text-sand-400 w-20 shrink-0">{line.date}</span>
+            <span className="flex-1 min-w-0 text-[12px] text-sand-700 truncate">{line.merchant_name || line.description}</span>
+            <input
+              type="number"
+              step="0.01"
+              value={line.editedAmount}
+              onChange={(e) => setLines((prev) => prev.map((l, j) => j === i ? { ...l, editedAmount: parseFloat(e.target.value) || 0 } : l))}
+              disabled={!line.checked}
+              className="w-24 rounded-lg border border-sand-200 bg-sand-50 px-2 py-1 text-right text-[12px] tabular-nums text-sand-700 disabled:opacity-40 focus:border-sand-400 focus:outline-none"
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Validate */}
+      <div className="mt-4 flex items-center justify-between">
+        <p className="text-[11px] text-sand-400">
+          {lines.filter((l) => l.checked).length}/{lines.length} lignes sélectionnées
+        </p>
+        <button
+          onClick={handleValidate}
+          disabled={!isBalanced || saving}
+          className="flex items-center gap-2 rounded-xl bg-forest-600 px-5 py-2.5 text-[13px] font-semibold text-white shadow-md hover:bg-forest-700 disabled:opacity-40"
+        >
+          <Check className="h-4 w-4" />
+          {saving ? "Validation..." : "Valider le rapprochement"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ───── Reconciliation Picker ─────
+
 function ReconciliationPicker({
   batchId,
   ccTotal,
@@ -14,19 +125,41 @@ function ReconciliationPicker({
 }: {
   batchId: number;
   ccTotal: string;
-  candidates: { id: number; date: string; description: string; merchant_name: string; amount: string }[];
+  candidates: CcLine[];
   onReconciled: () => void;
 }) {
+  const [detailData, setDetailData] = useState<{ paymentLineId: number; paymentAmount: number; ccLines: CcLine[] } | null>(null);
   const [linking, setLinking] = useState(false);
 
-  const handleSelect = async (txId: number) => {
+  const handleSelect = async (txId: number, txAmount: string) => {
     setLinking(true);
     const formData = new FormData();
     formData.append("payment_line_id", String(txId));
-    await api.post(`/import/batches/${batchId}/reconcile-manual`, formData);
+    const res = await api.post(`/import/batches/${batchId}/reconcile-manual`, formData);
     setLinking(false);
-    onReconciled();
+
+    if (res.data.status === "need_detail") {
+      setDetailData({
+        paymentLineId: res.data.payment_line_id,
+        paymentAmount: parseFloat(res.data.payment_amount),
+        ccLines: res.data.cc_lines,
+      });
+    } else {
+      onReconciled();
+    }
   };
+
+  if (detailData) {
+    return (
+      <ReconciliationDetail
+        batchId={batchId}
+        paymentLineId={detailData.paymentLineId}
+        paymentAmount={detailData.paymentAmount}
+        ccLines={detailData.ccLines}
+        onReconciled={onReconciled}
+      />
+    );
+  }
 
   return (
     <div className="rounded-xl border border-dusk-200 bg-dusk-50/30 p-4">
@@ -38,7 +171,7 @@ function ReconciliationPicker({
         {candidates.length > 0 ? candidates.map((c) => (
           <button
             key={c.id}
-            onClick={() => handleSelect(c.id)}
+            onClick={() => handleSelect(c.id, c.amount)}
             disabled={linking}
             className="flex w-full items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-left shadow-sm transition-all hover:shadow-md hover:border-dusk-300 border border-sand-200/60 disabled:opacity-50"
           >

@@ -77,7 +77,7 @@ def list_transactions(
 
     # Exclude reconciled CC payment lines from normal view
     query = query.filter(
-        Transaction.transaction_type.not_in(["cc_payment_reconciled", "envelope_transfer_split", "bills_account"]),
+        Transaction.transaction_type.not_in(["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account"]),
     )
 
     total = query.count()
