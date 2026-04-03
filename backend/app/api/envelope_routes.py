@@ -185,7 +185,7 @@ def list_bills_transactions(db: Session = Depends(get_db)):
     from app.models import Transaction
     txns = (
         db.query(Transaction)
-        .filter(Transaction.transaction_type == "bills_account")
+        .filter(Transaction.transaction_type == "bills_account", Transaction.amount < 0)
         .order_by(Transaction.date.desc())
         .all()
     )
