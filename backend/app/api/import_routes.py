@@ -121,3 +121,34 @@ def trigger_reconciliation(batch_id: int, db: Session = Depends(get_db)):
     if not batch:
         raise HTTPException(404, "Batch not found")
     return reconcile_viseca(db, batch_id)
+
+
+@router.post("/batches/{batch_id}/reconcile-manual")
+def manual_reconciliation(
+    batch_id: int,
+    payment_line_id: int = Form(..., description="ID of the bank transaction to link"),
+    db: Session = Depends(get_db),
+):
+    """Manually link CC transactions to a specific bank transaction."""
+    payment_line = db.query(Transaction).filter(Transaction.id == payment_line_id).first()
+    if not payment_line:
+        raise HTTPException(404, "Transaction non trouvée")
+
+    cc_txns = (
+        db.query(Transaction)
+        .filter(Transaction.import_batch_id == batch_id, Transaction.transaction_type == "credit_card")
+        .all()
+    )
+
+    payment_line.transaction_type = "cc_payment_reconciled"
+    payment_line.note = f"Réconcilié manuellement avec {len(cc_txns)} transactions CC"
+    for tx in cc_txns:
+        tx.parent_transaction_id = payment_line.id
+
+    db.commit()
+    return {
+        "status": "reconciled",
+        "message": f"Ligne de {abs(payment_line.amount)} CHF liée à {len(cc_txns)} transactions CC",
+        "cc_transactions": len(cc_txns),
+        "payment_line_id": payment_line.id,
+    }

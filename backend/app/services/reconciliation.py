@@ -95,8 +95,30 @@ def reconcile_viseca(db: Session, batch_id: int) -> dict:
             "cc_total": str(cc_total),
         }
 
-    # No match found — CC transactions exist but no bank line to replace
-    # This is OK: the bank payment might not be in this statement period yet
+    # No match found — return candidates for manual selection
+    candidates = (
+        db.query(Transaction)
+        .filter(
+            Transaction.transaction_type.not_in(HIDDEN_TYPES),
+            Transaction.amount < 0,
+        )
+        .order_by(Transaction.date.desc())
+        .all()
+    )
+    # Filter to Viseca-ish candidates (keyword OR large amounts)
+    candidate_list = []
+    for tx in candidates:
+        desc = ((tx.description or "") + " " + (tx.merchant_name or "")).lower()
+        is_viseca = any(kw in desc for kw in VISECA_KEYWORDS)
+        if is_viseca or abs(tx.amount) > 500:
+            candidate_list.append({
+                "id": tx.id,
+                "date": tx.date.isoformat(),
+                "description": tx.description[:80] if tx.description else "",
+                "merchant_name": tx.merchant_name,
+                "amount": str(tx.amount),
+            })
+
     db.commit()
     return {
         "status": "no_match",
@@ -104,4 +126,5 @@ def reconcile_viseca(db: Session, batch_id: int) -> dict:
         "cc_transactions": len(cc_txns),
         "payment_line_id": None,
         "cc_total": str(cc_total),
+        "candidates": candidate_list[:20],
     }

@@ -1,8 +1,58 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { FileUp, Check, AlertCircle, Sparkles, Upload, FileText } from "lucide-react";
+import { FileUp, Check, AlertCircle, Sparkles, Upload, FileText, LinkIcon } from "lucide-react";
 import { useUploadImport, useApplyRules } from "../lib/hooks";
+import { api } from "../lib/api";
+import { formatCHF } from "../lib/utils";
 import type { ImportResponse } from "../lib/types";
+
+function ReconciliationPicker({
+  batchId,
+  ccTotal,
+  candidates,
+  onReconciled,
+}: {
+  batchId: number;
+  ccTotal: string;
+  candidates: { id: number; date: string; description: string; merchant_name: string; amount: string }[];
+  onReconciled: () => void;
+}) {
+  const [linking, setLinking] = useState(false);
+
+  const handleSelect = async (txId: number) => {
+    setLinking(true);
+    const formData = new FormData();
+    formData.append("payment_line_id", String(txId));
+    await api.post(`/import/batches/${batchId}/reconcile-manual`, formData);
+    setLinking(false);
+    onReconciled();
+  };
+
+  return (
+    <div className="rounded-xl border border-dusk-200 bg-dusk-50/30 p-4">
+      <p className="text-[12px] font-semibold text-dusk-700">
+        <LinkIcon className="mr-1.5 inline h-3.5 w-3.5" />
+        Aucune transaction de {formatCHF(ccTotal)} trouvée. Choisissez la ligne bancaire correspondante :
+      </p>
+      <div className="mt-3 space-y-1.5 max-h-60 overflow-y-auto">
+        {candidates.length > 0 ? candidates.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => handleSelect(c.id)}
+            disabled={linking}
+            className="flex w-full items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-left shadow-sm transition-all hover:shadow-md hover:border-dusk-300 border border-sand-200/60 disabled:opacity-50"
+          >
+            <span className="text-[11px] tabular-nums text-sand-400 shrink-0">{c.date}</span>
+            <span className="flex-1 min-w-0 text-[12px] text-sand-700 truncate">{c.merchant_name || c.description}</span>
+            <span className="text-[12px] font-semibold tabular-nums text-sand-800">{formatCHF(c.amount)}</span>
+          </button>
+        )) : (
+          <p className="text-[11px] text-sand-400 py-2">Aucun candidat trouvé</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const ACCOUNT_TYPES = [
   { value: "salary", label: "Compte salaire", desc: "Transactions courantes, salaire, dépenses" },
@@ -164,11 +214,20 @@ export function ImportPage() {
                 </div>
               </div>
 
-              {result.reconciliation && (
+              {result.reconciliation && (result.reconciliation as Record<string, unknown>).status === "reconciled" && (
                 <div className="rounded-xl bg-dusk-50 p-3.5 text-[12px] text-dusk-700">
-                  <span className="font-semibold">Reconciliation CC :</span>{" "}
+                  <span className="font-semibold">Réconciliation CC :</span>{" "}
                   {String((result.reconciliation as Record<string, unknown>).cc_transactions)} transactions liées à la facture Viseca
                 </div>
+              )}
+
+              {result.reconciliation && (result.reconciliation as Record<string, unknown>).status === "no_match" && (
+                <ReconciliationPicker
+                  batchId={result.batch_id}
+                  ccTotal={String((result.reconciliation as Record<string, unknown>).cc_total)}
+                  candidates={(result.reconciliation as Record<string, unknown>).candidates as { id: number; date: string; description: string; merchant_name: string; amount: string }[]}
+                  onReconciled={() => setResult({ ...result, reconciliation: { status: "reconciled", cc_transactions: (result.reconciliation as Record<string, unknown>).cc_transactions } })}
+                />
               )}
 
               <button

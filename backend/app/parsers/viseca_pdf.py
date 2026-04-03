@@ -57,6 +57,7 @@ class VisecaStatement:
 
     statement_date: date | None = None
     total_amount: Decimal = Decimal(0)
+    previous_payment: Decimal | None = None  # "Votre paiement" amount from previous statement
     transactions: list[VisecaTransaction] = field(default_factory=list)
     cards: dict[str, str] = field(default_factory=dict)  # card_number -> cardholder
 
