@@ -224,10 +224,12 @@ function ComparisonView() {
 // ───── Long Term View ─────
 
 function LongtermView() {
+  const navigate = useNavigate();
   const { data, isLoading } = useLongterm(12);
 
   const chartData = data?.map((d) => ({
     month: d.month.slice(5),
+    fullMonth: d.month,
     label: formatMonth(d.month),
     income: parseFloat(d.income),
     expenses: parseFloat(d.expenses),
@@ -254,9 +256,12 @@ function LongtermView() {
                 labelFormatter={(_, p) => p?.[0]?.payload?.label || ""}
                 contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }}
               />
-              <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus (salaire)" />
-              <Bar yAxisId="amount" dataKey="savings_transfer" fill="#73619a" radius={[4, 4, 0, 0]} name="Épargne transférée" />
-              <Bar yAxisId="amount" dataKey="expenses" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" />
+              <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus (salaire)" cursor="pointer"
+                onClick={(d) => navigate(`/transactions?month=${d.fullMonth}`)} />
+              <Bar yAxisId="amount" dataKey="savings_transfer" fill="#73619a" radius={[4, 4, 0, 0]} name="Épargne transférée" cursor="pointer"
+                onClick={(d) => navigate(`/transactions?month=${d.fullMonth}`)} />
+              <Bar yAxisId="amount" dataKey="expenses" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" cursor="pointer"
+                onClick={(d) => navigate(`/transactions?month=${d.fullMonth}`)} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -312,6 +317,7 @@ function WaterfallView({ month }: { month: string }) {
 // ───── Heatmap View ─────
 
 function HeatmapView() {
+  const navigate = useNavigate();
   const { data, isLoading } = useHeatmap(6);
 
   if (isLoading) return <div className="flex h-40 items-center justify-center"><div className="h-5 w-5 animate-spin rounded-full border-2 border-sand-200 border-t-forest-500" /></div>;
@@ -352,7 +358,9 @@ function HeatmapView() {
                 const amt = parseFloat(m.amount);
                 return (
                   <td key={m.month} className="px-1 py-1 text-center">
-                    <div className={`rounded-md px-2 py-1.5 tabular-nums ${getColor(amt)} ${amt > 0 ? "text-sand-700" : "text-sand-300"}`}
+                    <div
+                      onClick={() => amt > 0 && navigate(`/transactions?month=${m.month}`)}
+                      className={`rounded-md px-2 py-1.5 tabular-nums ${getColor(amt)} ${amt > 0 ? "text-sand-700 cursor-pointer hover:ring-2 hover:ring-sand-300" : "text-sand-300"}`}
                       title={`${cat.category}: ${formatCHF(amt)} (${formatMonth(m.month)})`}>
                       {amt > 0 ? Math.round(amt) : "—"}
                     </div>
@@ -371,6 +379,7 @@ function HeatmapView() {
 // ───── Top Expenses View ─────
 
 function TopExpensesView({ month }: { month: string }) {
+  const navigate = useNavigate();
   const { data, isLoading } = useTopExpenses(month, 15);
 
   return (
@@ -386,7 +395,8 @@ function TopExpensesView({ month }: { month: string }) {
       ) : data && data.length > 0 ? (
         <div className="mt-4 space-y-2">
           {data.map((tx, i) => (
-            <div key={tx.id} className={`flex items-center gap-3 rounded-xl px-4 py-3 ${tx.is_anomaly ? "bg-ember-50 border border-ember-200" : "bg-sand-50"}`}>
+            <div key={tx.id} onClick={() => navigate(`/transactions?search=${encodeURIComponent(tx.merchant_name || tx.description)}`)}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-shadow hover:shadow-md ${tx.is_anomaly ? "bg-ember-50 border border-ember-200" : "bg-sand-50"}`}>
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">
                 {i + 1}
               </span>
