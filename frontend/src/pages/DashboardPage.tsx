@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ArrowUpRight, ArrowDownRight, BarChart3, GitCompareArrows, LayoutDashboard, Flame, Grid3X3, Trophy, AlertTriangle } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, ComposedChart } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAnomalies, useCategories, useCategoryBreakdown, useCategoryTrends, useLongterm, useWaterfall, useHeatmap, useTopExpenses, usePeriodComparison, useSummary } from "../lib/hooks";
 import { currentMonth, formatCHF, formatMonth, prevMonth } from "../lib/utils";
 
@@ -232,7 +232,6 @@ function LongtermView() {
     income: parseFloat(d.income),
     expenses: parseFloat(d.expenses),
     savings_transfer: parseFloat(d.savings_transfer || "0"),
-    savings_rate: d.savings_rate,
   }));
 
   return (
@@ -246,24 +245,19 @@ function LongtermView() {
       ) : chartData && chartData.length > 0 ? (
         <div className="mt-4 h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e8e0d4" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} />
               <YAxis yAxisId="amount" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} />
-              <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
               <Tooltip
-                formatter={(v, name) => {
-                  if (name === "Épargne %") return [`${v}%`, name];
-                  return [formatCHF(String(v)), name];
-                }}
+                formatter={(v) => formatCHF(String(v))}
                 labelFormatter={(_, p) => p?.[0]?.payload?.label || ""}
                 contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }}
               />
               <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus (salaire)" />
               <Bar yAxisId="amount" dataKey="savings_transfer" fill="#73619a" radius={[4, 4, 0, 0]} name="Épargne transférée" />
               <Bar yAxisId="amount" dataKey="expenses" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" />
-              <Line yAxisId="pct" dataKey="savings_rate" stroke="#73619a" strokeWidth={2.5} dot={{ fill: "#73619a", r: 4 }} name="Épargne %" />
-            </ComposedChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       ) : (
