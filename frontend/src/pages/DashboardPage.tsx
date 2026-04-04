@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ArrowUpRight, ArrowDownRight, BarChart3, GitCompareArrows, LayoutDashboard } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { useAnomalies, useCategories, useCategoryBreakdown, useCategoryTrends, usePeriodComparison, useSummary } from "../lib/hooks";
+import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ArrowUpRight, ArrowDownRight, BarChart3, GitCompareArrows, LayoutDashboard, Flame, Grid3X3, Trophy, AlertTriangle } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, ComposedChart, Legend } from "recharts";
+import { useAnomalies, useCategories, useCategoryBreakdown, useCategoryTrends, useLongterm, useWaterfall, useHeatmap, useTopExpenses, usePeriodComparison, useSummary } from "../lib/hooks";
 import { currentMonth, formatCHF, formatMonth, prevMonth } from "../lib/utils";
 
 const CHART_COLORS = [
@@ -14,9 +14,13 @@ const CHART_COLORS = [
   "#164832",
 ];
 
-type View = "summary" | "trends" | "comparison";
+type View = "longterm" | "waterfall" | "heatmap" | "top" | "summary" | "trends" | "comparison";
 
 const TABS: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
+  { id: "longterm", label: "Long terme", icon: TrendingUp },
+  { id: "waterfall", label: "Cascade", icon: Flame },
+  { id: "heatmap", label: "Heatmap", icon: Grid3X3 },
+  { id: "top", label: "Top dépenses", icon: Trophy },
   { id: "summary", label: "Résumé", icon: LayoutDashboard },
   { id: "trends", label: "Évolution", icon: BarChart3 },
   { id: "comparison", label: "Comparaison", icon: GitCompareArrows },
@@ -217,11 +221,199 @@ function ComparisonView() {
   );
 }
 
+// ───── Long Term View ─────
+
+function LongtermView() {
+  const { data, isLoading } = useLongterm(12);
+
+  const chartData = data?.map((d) => ({
+    month: d.month.slice(5),
+    label: formatMonth(d.month),
+    income: parseFloat(d.income),
+    expenses: parseFloat(d.expenses),
+    savings_rate: d.savings_rate,
+  }));
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Revenus vs Dépenses + Taux d'épargne</h2>
+      {isLoading ? (
+        <div className="flex h-[400px] items-center justify-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-sand-200 border-t-forest-500" />
+        </div>
+      ) : chartData && chartData.length > 0 ? (
+        <div className="mt-4 h-[400px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e8e0d4" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="amount" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+              <Tooltip formatter={(v, name) => [formatCHF(String(v)), name === "savings_rate" ? "Épargne %" : name === "income" ? "Revenus" : "Dépenses"]}
+                labelFormatter={(_, p) => p?.[0]?.payload?.label || ""} contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }} />
+              <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus" />
+              <Bar yAxisId="amount" dataKey="expenses" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" />
+              <Line yAxisId="pct" dataKey="savings_rate" stroke="#73619a" strokeWidth={2.5} dot={{ fill: "#73619a", r: 4 }} name="Épargne %" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="flex h-[400px] items-center justify-center text-[13px] text-sand-300">Aucune donnée</div>
+      )}
+    </motion.div>
+  );
+}
+
+// ───── Waterfall View ─────
+
+function WaterfallView({ month }: { month: string }) {
+  const { data, isLoading } = useWaterfall(month);
+
+  const chartData = data?.map((step) => {
+    const val = parseFloat(step.value);
+    if (step.type === "income") return { name: step.name, gain: val, loss: 0 };
+    if (step.type === "savings") return { name: step.name, gain: val > 0 ? val : 0, loss: val < 0 ? Math.abs(val) : 0 };
+    return { name: step.name, gain: 0, loss: val };
+  });
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">
+        Cascade des dépenses — {formatMonth(month)}
+      </h2>
+      {isLoading ? (
+        <div className="flex h-[400px] items-center justify-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-sand-200 border-t-forest-500" />
+        </div>
+      ) : chartData && chartData.length > 0 ? (
+        <div className="mt-4 h-[400px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e8e0d4" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9a856c" }} tickLine={false} axisLine={false} angle={-45} textAnchor="end" height={80} />
+              <YAxis tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(v) => formatCHF(String(v))} contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }} />
+              <Bar dataKey="gain" stackId="a" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus/Épargne" />
+              <Bar dataKey="loss" stackId="a" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="flex h-[400px] items-center justify-center text-[13px] text-sand-300">Aucune donnée</div>
+      )}
+    </motion.div>
+  );
+}
+
+// ───── Heatmap View ─────
+
+function HeatmapView() {
+  const { data, isLoading } = useHeatmap(6);
+
+  if (isLoading) return <div className="flex h-40 items-center justify-center"><div className="h-5 w-5 animate-spin rounded-full border-2 border-sand-200 border-t-forest-500" /></div>;
+  if (!data || data.categories.length === 0) return <div className="flex h-40 items-center justify-center text-[13px] text-sand-300">Aucune donnée</div>;
+
+  const allAmounts = data.categories.flatMap((c) => c.months.map((m) => parseFloat(m.amount)));
+  const maxAmount = Math.max(...allAmounts, 1);
+
+  const getColor = (amount: number) => {
+    if (amount === 0) return "bg-sand-50";
+    const intensity = Math.min(amount / (maxAmount * 0.5), 1);
+    if (intensity < 0.2) return "bg-ember-50";
+    if (intensity < 0.4) return "bg-ember-100";
+    if (intensity < 0.6) return "bg-ember-200";
+    if (intensity < 0.8) return "bg-ember-300";
+    return "bg-ember-400";
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm overflow-x-auto">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">Intensité des dépenses par catégorie</h2>
+      <table className="mt-4 w-full text-[12px]">
+        <thead>
+          <tr>
+            <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase text-sand-400 w-40">Catégorie</th>
+            {data.months.map((m) => (
+              <th key={m} className="px-2 py-2 text-center text-[10px] font-semibold uppercase text-sand-400">{m.slice(5)}/{m.slice(2, 4)}</th>
+            ))}
+            <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase text-sand-400">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.categories.map((cat) => (
+            <tr key={cat.category} className="border-t border-sand-50">
+              <td className="px-3 py-2 font-medium text-sand-700 truncate max-w-[160px]">{cat.category}</td>
+              {cat.months.map((m) => {
+                const amt = parseFloat(m.amount);
+                return (
+                  <td key={m.month} className="px-1 py-1 text-center">
+                    <div className={`rounded-md px-2 py-1.5 tabular-nums ${getColor(amt)} ${amt > 0 ? "text-sand-700" : "text-sand-300"}`}
+                      title={`${cat.category}: ${formatCHF(amt)} (${formatMonth(m.month)})`}>
+                      {amt > 0 ? Math.round(amt) : "—"}
+                    </div>
+                  </td>
+                );
+              })}
+              <td className="px-3 py-2 text-right font-semibold tabular-nums text-sand-800">{formatCHF(cat.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </motion.div>
+  );
+}
+
+// ───── Top Expenses View ─────
+
+function TopExpensesView({ month }: { month: string }) {
+  const { data, isLoading } = useTopExpenses(month, 15);
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-sand-200/60 bg-white p-5 shadow-sm">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sand-400">
+        Plus grosses dépenses — {formatMonth(month)}
+      </h2>
+      {isLoading ? (
+        <div className="flex h-40 items-center justify-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-sand-200 border-t-forest-500" />
+        </div>
+      ) : data && data.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          {data.map((tx, i) => (
+            <div key={tx.id} className={`flex items-center gap-3 rounded-xl px-4 py-3 ${tx.is_anomaly ? "bg-ember-50 border border-ember-200" : "bg-sand-50"}`}>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sand-200 text-[10px] font-bold text-sand-600">
+                {i + 1}
+              </span>
+              <span className="text-[11px] tabular-nums text-sand-400 w-20 shrink-0">{tx.date}</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-[13px] font-medium text-sand-800 truncate block">{tx.merchant_name || tx.description}</span>
+                {tx.category_name && (
+                  <span className="rounded-md bg-forest-50 px-1.5 py-0.5 text-[10px] font-semibold text-forest-700">{tx.category_name}</span>
+                )}
+              </div>
+              <span className="text-[14px] font-semibold tabular-nums text-ember-600">{formatCHF(tx.amount)}</span>
+              {tx.is_anomaly && (
+                <AlertTriangle className="h-4 w-4 shrink-0 text-ember-500" />
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex h-40 items-center justify-center text-[13px] text-sand-300">Aucune donnée</div>
+      )}
+    </motion.div>
+  );
+}
+
 // ───── Main Dashboard ─────
 
 export function DashboardPage() {
   const [month, setMonth] = useState(currentMonth());
-  const [view, setView] = useState<View>("summary");
+  const [view, setView] = useState<View>("longterm");
   const navigate = useNavigate();
   const { data: summary } = useSummary(month);
   const { data: categories } = useCategoryBreakdown(month, month);
@@ -369,6 +561,10 @@ export function DashboardPage() {
           </div>
         )}
 
+        {view === "longterm" && <LongtermView />}
+        {view === "waterfall" && <WaterfallView month={month} />}
+        {view === "heatmap" && <HeatmapView />}
+        {view === "top" && <TopExpensesView month={month} />}
         {view === "trends" && <TrendsView />}
         {view === "comparison" && <ComparisonView />}
       </div>

@@ -35,6 +35,36 @@ export function useAnomalies(month: string) {
   });
 }
 
+export function useLongterm(months: number = 12) {
+  return useQuery<{ month: string; income: string; expenses: string; savings: string; savings_rate: number }[]>({
+    queryKey: ["longterm", months],
+    queryFn: () => api.get(`/dashboard/longterm?months=${months}`).then((r) => r.data),
+  });
+}
+
+export function useWaterfall(month: string) {
+  return useQuery<{ name: string; value: string; type: string; running_total?: string }[]>({
+    queryKey: ["waterfall", month],
+    queryFn: () => api.get(`/dashboard/waterfall?month=${month}`).then((r) => r.data),
+    enabled: !!month,
+  });
+}
+
+export function useHeatmap(months: number = 6) {
+  return useQuery<{ months: string[]; categories: { category: string; total: string; months: { month: string; amount: string }[] }[] }>({
+    queryKey: ["heatmap", months],
+    queryFn: () => api.get(`/dashboard/heatmap?months=${months}`).then((r) => r.data),
+  });
+}
+
+export function useTopExpenses(month: string, limit: number = 10) {
+  return useQuery<{ id: number; date: string; merchant_name: string; description: string; category_name: string | null; amount: string; is_anomaly: boolean; avg_for_category: string }[]>({
+    queryKey: ["top-expenses", month, limit],
+    queryFn: () => api.get(`/dashboard/top-expenses?month=${month}&limit=${limit}`).then((r) => r.data),
+    enabled: !!month,
+  });
+}
+
 export function useCategoryTrends(categoryId: number | null, months: number = 12) {
   return useQuery<{ month: string; total: string }[]>({
     queryKey: ["trends", categoryId, months],

@@ -12,6 +12,8 @@ from app.models import Account, Category, Transaction
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
+HIDDEN_TYPES = ["cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account", "split_parent"]
+
 
 class MonthlySummary(BaseModel):
     month: str
@@ -269,5 +271,193 @@ def category_trends(
             .scalar()
         ) or Decimal(0)
         result.append({"month": m, "total": str(total)})
+
+    return result
+
+
+# ───── New Statistical Views ─────
+
+
+@router.get("/longterm")
+def longterm_view(
+    months: int = Query(12, description="Number of months"),
+    db: Session = Depends(get_db),
+):
+    """Monthly income vs expenses + savings rate over time."""
+    all_months = (
+        db.query(Transaction.effective_month)
+        .filter(Transaction.effective_month.is_not(None))
+        .distinct()
+        .order_by(Transaction.effective_month.desc())
+        .limit(months)
+        .all()
+    )
+
+    result = []
+    for (m,) in reversed(all_months):
+        txns = db.query(Transaction).filter(Transaction.effective_month == m).all()
+        income = sum(t.amount for t in txns if t.amount > 0 and not t.is_transfer and t.transaction_type not in HIDDEN_TYPES)
+        expenses = sum(t.amount for t in txns if t.amount < 0 and not t.is_transfer and t.transaction_type not in HIDDEN_TYPES)
+        savings = income + expenses
+        rate = round((savings / income) * 100, 1) if income > 0 else 0
+        result.append({
+            "month": m,
+            "income": str(income),
+            "expenses": str(abs(expenses)),
+            "savings": str(savings),
+            "savings_rate": float(rate),
+        })
+
+    return result
+
+
+@router.get("/waterfall")
+def waterfall_view(
+    month: str = Query(..., description="YYYY-MM"),
+    db: Session = Depends(get_db),
+):
+    """Waterfall chart: starts from income, subtracts each category, arrives at savings."""
+    txns = (
+        db.query(Transaction)
+        .filter(
+            Transaction.effective_month == month,
+            Transaction.is_transfer == False,
+            Transaction.transaction_type.not_in(HIDDEN_TYPES),
+        )
+        .all()
+    )
+
+    income = sum(t.amount for t in txns if t.amount > 0)
+
+    by_cat: dict[str, Decimal] = {}
+    for t in txns:
+        if t.amount >= 0:
+            continue
+        if t.category_id:
+            cat = db.query(Category).filter(Category.id == t.category_id).first()
+            name = cat.name if cat else "?"
+        else:
+            name = "Non catégorisé"
+        by_cat[name] = by_cat.get(name, Decimal(0)) + abs(t.amount)
+
+    sorted_cats = sorted(by_cat.items(), key=lambda x: x[1], reverse=True)
+
+    steps = [{"name": "Revenus", "value": str(income), "type": "income"}]
+    running = income
+    for name, amount in sorted_cats:
+        running -= amount
+        steps.append({"name": name, "value": str(amount), "type": "expense", "running_total": str(running)})
+
+    savings = income - sum(by_cat.values())
+    steps.append({"name": "Épargne", "value": str(savings), "type": "savings"})
+
+    return steps
+
+
+@router.get("/heatmap")
+def heatmap_view(
+    months: int = Query(6, description="Number of months"),
+    db: Session = Depends(get_db),
+):
+    """Heatmap: categories x months with expense amounts."""
+    all_months = (
+        db.query(Transaction.effective_month)
+        .filter(Transaction.effective_month.is_not(None))
+        .distinct()
+        .order_by(Transaction.effective_month.desc())
+        .limit(months)
+        .all()
+    )
+    month_list = [m[0] for m in reversed(all_months)]
+
+    txns = (
+        db.query(Transaction)
+        .filter(
+            Transaction.effective_month.in_(month_list),
+            Transaction.amount < 0,
+            Transaction.is_transfer == False,
+            Transaction.transaction_type.not_in(HIDDEN_TYPES),
+        )
+        .all()
+    )
+
+    data: dict[str, dict[str, Decimal]] = {}
+    cat_totals: dict[str, Decimal] = {}
+    cat_cache: dict[int, str] = {}
+    for t in txns:
+        if t.category_id:
+            if t.category_id not in cat_cache:
+                cat = db.query(Category).filter(Category.id == t.category_id).first()
+                cat_cache[t.category_id] = cat.name if cat else "?"
+            name = cat_cache[t.category_id]
+        else:
+            name = "Non catégorisé"
+        if name not in data:
+            data[name] = {}
+            cat_totals[name] = Decimal(0)
+        data[name][t.effective_month] = data[name].get(t.effective_month, Decimal(0)) + abs(t.amount)
+        cat_totals[name] += abs(t.amount)
+
+    sorted_cats = sorted(data.keys(), key=lambda c: cat_totals[c], reverse=True)
+
+    categories = []
+    for cat in sorted_cats:
+        months_data = [{"month": m, "amount": str(data[cat].get(m, Decimal(0)))} for m in month_list]
+        categories.append({"category": cat, "total": str(cat_totals[cat]), "months": months_data})
+
+    return {"months": month_list, "categories": categories}
+
+
+@router.get("/top-expenses")
+def top_expenses_view(
+    month: str = Query(..., description="YYYY-MM"),
+    limit: int = Query(10),
+    db: Session = Depends(get_db),
+):
+    """Top N biggest expenses + anomaly detection."""
+    txns = (
+        db.query(Transaction)
+        .filter(
+            Transaction.effective_month == month,
+            Transaction.amount < 0,
+            Transaction.is_transfer == False,
+            Transaction.transaction_type.not_in(HIDDEN_TYPES),
+        )
+        .order_by(Transaction.amount)
+        .limit(limit)
+        .all()
+    )
+
+    cat_avgs: dict[int, Decimal] = {}
+    cat_cache: dict[int, str] = {}
+    result = []
+    for t in txns:
+        cat_name = None
+        if t.category_id:
+            if t.category_id not in cat_cache:
+                cat = db.query(Category).filter(Category.id == t.category_id).first()
+                cat_cache[t.category_id] = cat.name if cat else "?"
+            cat_name = cat_cache[t.category_id]
+            if t.category_id not in cat_avgs:
+                avg = (
+                    db.query(func.avg(Transaction.amount))
+                    .filter(Transaction.category_id == t.category_id, Transaction.amount < 0, Transaction.transaction_type.not_in(HIDDEN_TYPES))
+                    .scalar()
+                )
+                cat_avgs[t.category_id] = abs(avg) if avg else Decimal(0)
+
+        avg_for_cat = cat_avgs.get(t.category_id, Decimal(0))
+        is_anomaly = avg_for_cat > 0 and abs(t.amount) > avg_for_cat * 2
+
+        result.append({
+            "id": t.id,
+            "date": t.date.isoformat(),
+            "merchant_name": t.merchant_name,
+            "description": t.description[:60] if t.description else "",
+            "category_name": cat_name,
+            "amount": str(t.amount),
+            "is_anomaly": is_anomaly,
+            "avg_for_category": str(round(avg_for_cat, 2)),
+        })
 
     return result
