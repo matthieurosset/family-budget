@@ -1,6 +1,6 @@
 """API routes for transaction listing, search, and editing."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Form, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
