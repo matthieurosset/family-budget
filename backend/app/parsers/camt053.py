@@ -127,23 +127,42 @@ def _extract_merchant(tx_type: str, description: str, creditor_name: str | None)
     return None
 
 
-def _is_internal_transfer(owner_name: str, debtor_name: str | None, creditor_name: str | None) -> bool:
-    """Detect if transaction is an internal transfer between own accounts."""
+def _is_internal_transfer(
+    owner_name: str,
+    debtor_name: str | None,
+    creditor_name: str | None,
+    creditor_iban: str | None,
+    owner_iban: str,
+) -> bool:
+    """Detect if transaction is an internal transfer between own accounts.
+
+    Requires both name match AND same bank (IBAN prefix) to avoid
+    false positives like mortgage payments where the creditor name
+    contains the owner's name.
+    """
     if not debtor_name or not creditor_name:
         return False
     if debtor_name == "NOTPROVIDED" or creditor_name == "NOTPROVIDED":
         return False
-    # Normalize for comparison: the owner name from statement header
+    # Name match: both debtor and creditor share significant words with the owner
     owner_parts = set(owner_name.lower().split())
     debtor_parts = set(debtor_name.lower().split())
     creditor_parts = set(creditor_name.lower().split())
-    # If both debtor and creditor share significant words with the owner
-    return len(owner_parts & debtor_parts) >= 2 and len(owner_parts & creditor_parts) >= 2
+    name_match = len(owner_parts & debtor_parts) >= 2 and len(owner_parts & creditor_parts) >= 2
+    if not name_match:
+        return False
+    # If creditor has an IBAN, check it's at the same bank (same first 8 chars)
+    if creditor_iban and owner_iban:
+        same_bank = creditor_iban[:8] == owner_iban[:8]
+        return same_bank
+    # No IBAN to compare — fall back to name match only
+    return True
 
 
 def _parse_entry_transactions(
     entry: etree._Element,
     owner_name: str,
+    owner_iban: str,
     booking_date: date,
     value_date: date | None,
     is_debit: bool,
@@ -193,7 +212,7 @@ def _parse_entry_transactions(
 
         tx_type = _detect_transaction_type(addtl_tx_info, addtl_ntry_info, sub_family)
         merchant = _extract_merchant(tx_type, description, creditor_name)
-        is_transfer = _is_internal_transfer(owner_name, debtor_name, creditor_name)
+        is_transfer = _is_internal_transfer(owner_name, debtor_name, creditor_name, creditor_iban, owner_iban)
 
         transactions.append(
             ParsedTransaction(
@@ -257,6 +276,7 @@ def parse_camt053(file_path: str | Path) -> ParsedStatement:
         txns = _parse_entry_transactions(
             entry=entry,
             owner_name=owner_name,
+            owner_iban=iban,
             booking_date=booking_date,
             value_date=val_date,
             is_debit=is_debit,

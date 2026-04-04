@@ -250,8 +250,14 @@ function LongtermView() {
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} />
               <YAxis yAxisId="amount" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} />
               <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 11, fill: "#9a856c" }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-              <Tooltip formatter={(v, name) => [formatCHF(String(v)), name === "savings_rate" ? "Épargne %" : name === "income" ? "Revenus" : "Dépenses"]}
-                labelFormatter={(_, p) => p?.[0]?.payload?.label || ""} contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }} />
+              <Tooltip
+                formatter={(v, name) => {
+                  if (name === "Épargne %") return [`${v}%`, name];
+                  return [formatCHF(String(v)), name];
+                }}
+                labelFormatter={(_, p) => p?.[0]?.payload?.label || ""}
+                contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }}
+              />
               <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus" />
               <Bar yAxisId="amount" dataKey="expenses" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" />
               <Line yAxisId="pct" dataKey="savings_rate" stroke="#73619a" strokeWidth={2.5} dot={{ fill: "#73619a", r: 4 }} name="Épargne %" />
