@@ -257,11 +257,11 @@ function LongtermView() {
                 contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }}
               />
               <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus (salaire)" cursor="pointer"
-                onClick={(d) => navigate(`/transactions?month=${d.fullMonth}`)} />
+                onClick={(d) => navigate(`/transactions?month=${(d as Record<string, unknown>).fullMonth}`)} />
               <Bar yAxisId="amount" dataKey="savings_transfer" fill="#73619a" radius={[4, 4, 0, 0]} name="Épargne transférée" cursor="pointer"
-                onClick={(d) => navigate(`/transactions?month=${d.fullMonth}`)} />
+                onClick={(d) => navigate(`/transactions?month=${(d as Record<string, unknown>).fullMonth}`)} />
               <Bar yAxisId="amount" dataKey="expenses" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" cursor="pointer"
-                onClick={(d) => navigate(`/transactions?month=${d.fullMonth}`)} />
+                onClick={(d) => navigate(`/transactions?month=${(d as Record<string, unknown>).fullMonth}`)} />
             </BarChart>
           </ResponsiveContainer>
         </div>
