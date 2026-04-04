@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ArrowUpRight, ArrowDownRight, BarChart3, GitCompareArrows, LayoutDashboard, Flame, Grid3X3, Trophy, AlertTriangle } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, ComposedChart, Legend } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, ComposedChart } from "recharts";
 import { useAnomalies, useCategories, useCategoryBreakdown, useCategoryTrends, useLongterm, useWaterfall, useHeatmap, useTopExpenses, usePeriodComparison, useSummary } from "../lib/hooks";
 import { currentMonth, formatCHF, formatMonth, prevMonth } from "../lib/utils";
 
