@@ -187,6 +187,53 @@ function ReconciliationPicker({
   );
 }
 
+function TransferTagger() {
+  const [transfers, setTransfers] = useState<{ id: number; date: string; amount: string; description: string; merchant_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useState(() => {
+    api.get("/transactions/untagged-transfers").then((r) => { setTransfers(r.data); setLoading(false); });
+  });
+
+  if (loading || transfers.length === 0) return null;
+
+  const handleTag = async (txId: number, target: string) => {
+    const formData = new FormData();
+    formData.append("target", target);
+    await api.patch(`/transactions/${txId}/transfer-target`, formData);
+    setTransfers((prev) => prev.filter((t) => t.id !== txId));
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      className="mt-4 rounded-2xl border border-dusk-200 bg-dusk-50/30 p-5">
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-dusk-500">
+        Transferts à tagger ({transfers.length})
+      </h3>
+      <p className="mt-1 text-[11px] text-sand-400">
+        Indiquez si ces transferts vont vers l'épargne ou le compte factures
+      </p>
+      <div className="mt-3 space-y-2">
+        {transfers.map((t) => (
+          <div key={t.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-sm">
+            <span className="text-[11px] tabular-nums text-sand-400">{t.date}</span>
+            <span className="flex-1 min-w-0 text-[12px] text-sand-700 truncate">{t.merchant_name || t.description}</span>
+            <span className="text-[13px] font-semibold tabular-nums text-sand-800">{formatCHF(t.amount)}</span>
+            <button onClick={() => handleTag(t.id, "savings")}
+              className="rounded-lg bg-dusk-100 px-3 py-1.5 text-[11px] font-semibold text-dusk-700 hover:bg-dusk-200">
+              Épargne
+            </button>
+            <button onClick={() => handleTag(t.id, "bills")}
+              className="rounded-lg bg-sand-100 px-3 py-1.5 text-[11px] font-medium text-sand-600 hover:bg-sand-200">
+              Factures
+            </button>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 const ACCOUNT_TYPES = [
   { value: "salary", label: "Compte salaire", desc: "Transactions courantes, salaire, dépenses" },
   { value: "bills", label: "Compte factures", desc: "Factures annuelles — ne compte pas dans les dépenses, met à jour les enveloppes" },
@@ -385,6 +432,9 @@ export function ImportPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Transfer tagging */}
+        {result && <TransferTagger />}
       </div>
     </div>
   );

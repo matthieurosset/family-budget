@@ -231,6 +231,7 @@ function LongtermView() {
     label: formatMonth(d.month),
     income: parseFloat(d.income),
     expenses: parseFloat(d.expenses),
+    savings_transfer: parseFloat(d.savings_transfer || "0"),
     savings_rate: d.savings_rate,
   }));
 
@@ -258,7 +259,8 @@ function LongtermView() {
                 labelFormatter={(_, p) => p?.[0]?.payload?.label || ""}
                 contentStyle={{ borderRadius: "12px", border: "1px solid #e8e0d4", fontSize: "13px" }}
               />
-              <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus" />
+              <Bar yAxisId="amount" dataKey="income" fill="#2d8a5e" radius={[4, 4, 0, 0]} name="Revenus (salaire)" />
+              <Bar yAxisId="amount" dataKey="savings_transfer" fill="#73619a" radius={[4, 4, 0, 0]} name="Épargne transférée" />
               <Bar yAxisId="amount" dataKey="expenses" fill="#e85528" radius={[4, 4, 0, 0]} name="Dépenses" />
               <Line yAxisId="pct" dataKey="savings_rate" stroke="#73619a" strokeWidth={2.5} dot={{ fill: "#73619a", r: 4 }} name="Épargne %" />
             </ComposedChart>

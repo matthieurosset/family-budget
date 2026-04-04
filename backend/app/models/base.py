@@ -86,6 +86,7 @@ class Transaction(Base):
     parent_transaction_id: Mapped[int | None] = mapped_column(ForeignKey("transactions.id"))
     note: Mapped[str | None] = mapped_column(Text)
     is_transfer: Mapped[bool] = mapped_column(Boolean, default=False)
+    transfer_target: Mapped[str | None] = mapped_column(String(20))  # "savings" / "bills" / null
     transaction_type: Mapped[str | None] = mapped_column(String(30))  # card_payment, twint, standing_order, salary, transfer, etc.
     bank_reference: Mapped[str | None] = mapped_column(String(100), unique=True)
     import_batch_id: Mapped[int | None] = mapped_column(ForeignKey("import_batches.id"))

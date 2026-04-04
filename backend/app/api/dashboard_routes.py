@@ -45,21 +45,26 @@ def monthly_summary(month: str = Query(..., description="YYYY-MM"), db: Session 
     """Get monthly summary: totals for expenses, income, transfers."""
     txns = db.query(Transaction).filter(Transaction.effective_month == month).all()
 
-    expenses = sum(t.amount for t in txns if t.amount < 0 and not t.is_transfer and t.transaction_type not in ("cc_payment_reconciled", "credit_card_pending", "envelope_transfer_split", "bills_account", "split_parent"))
-    income = sum(t.amount for t in txns if t.amount > 0 and not t.is_transfer)
+    # Income = salary only
+    income = sum(t.amount for t in txns if t.transaction_type == "salary")
+    # Expenses = all negatives + positives that are not salary/transfer (refunds reduce their category)
+    non_hidden = [t for t in txns if not t.is_transfer and t.transaction_type not in HIDDEN_TYPES]
+    expenses = sum(t.amount for t in non_hidden if t.transaction_type != "salary")
     transfers = sum(abs(t.amount) for t in txns if t.is_transfer)
 
     # Per account
     by_account = {}
     for t in txns:
+        if t.is_transfer or t.transaction_type in HIDDEN_TYPES:
+            continue
         acct_id = t.account_id
         if acct_id not in by_account:
             acct = db.query(Account).filter(Account.id == acct_id).first()
             by_account[acct_id] = {"account": acct.name if acct else "?", "expenses": Decimal(0), "income": Decimal(0)}
-        if t.amount < 0 and not t.is_transfer:
-            by_account[acct_id]["expenses"] += t.amount
-        elif t.amount > 0 and not t.is_transfer:
+        if t.transaction_type == "salary":
             by_account[acct_id]["income"] += t.amount
+        else:
+            by_account[acct_id]["expenses"] += t.amount
 
     return MonthlySummary(
         month=month,
@@ -296,15 +301,21 @@ def longterm_view(
     result = []
     for (m,) in reversed(all_months):
         txns = db.query(Transaction).filter(Transaction.effective_month == m).all()
-        income = sum(t.amount for t in txns if t.amount > 0 and not t.is_transfer and t.transaction_type not in HIDDEN_TYPES)
-        expenses = sum(t.amount for t in txns if t.amount < 0 and not t.is_transfer and t.transaction_type not in HIDDEN_TYPES)
-        savings = income + expenses
-        rate = round((savings / income) * 100, 1) if income > 0 else 0
+        income = sum(t.amount for t in txns if t.transaction_type == "salary")
+        non_hidden = [t for t in txns if not t.is_transfer and t.transaction_type not in HIDDEN_TYPES]
+        expenses = sum(t.amount for t in non_hidden if t.transaction_type != "salary")
+        # Savings transfers (tagged as "savings")
+        savings_out = sum(abs(t.amount) for t in txns if t.is_transfer and t.transfer_target == "savings" and t.amount < 0)
+        savings_in = sum(t.amount for t in txns if t.is_transfer and t.transfer_target == "savings" and t.amount > 0)
+        net_savings_transfer = savings_out - savings_in  # positive = put aside, negative = took back
+        balance = income + expenses
+        rate = round((balance / income) * 100, 1) if income > 0 else 0
         result.append({
             "month": m,
             "income": str(income),
             "expenses": str(abs(expenses)),
-            "savings": str(savings),
+            "savings_transfer": str(net_savings_transfer),
+            "balance": str(balance),
             "savings_rate": float(rate),
         })
 
@@ -327,20 +338,26 @@ def waterfall_view(
         .all()
     )
 
-    income = sum(t.amount for t in txns if t.amount > 0)
+    income = sum(t.amount for t in txns if t.transaction_type == "salary")
 
+    # Group all non-salary by category (sum signed amounts, refunds reduce their category)
     by_cat: dict[str, Decimal] = {}
+    cat_cache: dict[int, str] = {}
     for t in txns:
-        if t.amount >= 0:
+        if t.transaction_type == "salary":
             continue
         if t.category_id:
-            cat = db.query(Category).filter(Category.id == t.category_id).first()
-            name = cat.name if cat else "?"
+            if t.category_id not in cat_cache:
+                cat = db.query(Category).filter(Category.id == t.category_id).first()
+                cat_cache[t.category_id] = cat.name if cat else "?"
+            name = cat_cache[t.category_id]
         else:
             name = "Non catégorisé"
-        by_cat[name] = by_cat.get(name, Decimal(0)) + abs(t.amount)
+        by_cat[name] = by_cat.get(name, Decimal(0)) + t.amount  # signed sum
 
-    sorted_cats = sorted(by_cat.items(), key=lambda x: x[1], reverse=True)
+    # Convert to absolute (net expense per category), exclude categories with net positive (fully refunded)
+    by_cat_abs = {k: abs(v) for k, v in by_cat.items() if v < 0}
+    sorted_cats = sorted(by_cat_abs.items(), key=lambda x: x[1], reverse=True)
 
     steps = [{"name": "Revenus", "value": str(income), "type": "income"}]
     running = income
@@ -348,7 +365,7 @@ def waterfall_view(
         running -= amount
         steps.append({"name": name, "value": str(amount), "type": "expense", "running_total": str(running)})
 
-    savings = income - sum(by_cat.values())
+    savings = income - sum(by_cat_abs.values())
     steps.append({"name": "Épargne", "value": str(savings), "type": "savings"})
 
     return steps

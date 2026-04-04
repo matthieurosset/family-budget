@@ -280,6 +280,39 @@ def get_split_children(tx_id: int, db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/untagged-transfers")
+def list_untagged_transfers(db: Session = Depends(get_db)):
+    """List transfers that haven't been tagged as savings or bills."""
+    txns = (
+        db.query(Transaction)
+        .filter(
+            Transaction.is_transfer == True,
+            Transaction.transfer_target.is_(None),
+            Transaction.transaction_type.not_in(["envelope_transfer_split", "bills_account"]),
+        )
+        .order_by(Transaction.date.desc())
+        .all()
+    )
+    return [
+        {"id": t.id, "date": t.date.isoformat(), "amount": str(t.amount), "description": t.description[:60], "merchant_name": t.merchant_name}
+        for t in txns
+    ]
+
+
+@router.patch("/{tx_id}/transfer-target")
+def tag_transfer(tx_id: int, target: str = Form(..., description="savings or bills"), db: Session = Depends(get_db)):
+    """Tag a transfer as going to savings or bills account."""
+    from fastapi import HTTPException
+    if target not in ("savings", "bills"):
+        raise HTTPException(400, "Target must be 'savings' or 'bills'")
+    tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(404, "Transaction not found")
+    tx.transfer_target = target
+    db.commit()
+    return {"status": "tagged", "id": tx_id, "target": target}
+
+
 @router.get("/accounts")
 def list_accounts(db: Session = Depends(get_db)):
     from app.models import Account
