@@ -36,7 +36,7 @@ export function useAnomalies(month: string) {
 }
 
 export function useLongterm(months: number = 12) {
-  return useQuery<{ month: string; income: string; expenses: string; savings: string; savings_rate: number }[]>({
+  return useQuery<{ month: string; income: string; expenses: string; savings_transfer: string; balance: string; savings_rate: number }[]>({
     queryKey: ["longterm", months],
     queryFn: () => api.get(`/dashboard/longterm?months=${months}`).then((r) => r.data),
   });
